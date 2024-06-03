@@ -1,4 +1,4 @@
 # GOReloc
-This repository will contain the implementation of our GOReloc: Graph-based Object-Level Data Association for Relocalization.
+[RAL] This repository contains the implementation of our RAL paper in submission： GOReloc: Graph-based Object-Level Data Association for Relocalization.
 
-The code is coming soon!
+More usage details are coming soon!
