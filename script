@@ -1,0 +1,52 @@
+sh build.sh 
+
+cd /bin
+
+##### MAPPING ######
+
+./rgbd_tum_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/TUM2.yaml /home/yutong/data/rgbd_dataset_freiburg2_desk /home/yutong/ORB_SLAM2/Examples/RGB-D/associations/fr2_desk.txt ../Data/detections_yolov8x_seg_tum_rgbd_fr2_desk_with_ellipse.json null points fr2_desk
+
+./rgbd_diamond_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/diamond_walk.yaml /home/yutong/data/diamond_walk_for_test ../Data/diamond_walk/diamond_walk_associated.txt ../Data/diamond_walk/detections_yolov8x_seg_diamond_with_ellipse.json null points diamond
+
+./rgbd_tum_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/TUM2.yaml /home/yutong/data/rgbd_dataset_freiburg2_desk_with_person ../Data/fr2_person/fr2_person_associated.txt ../Data/fr2_person/detections_yolov8x_seg_fr2_person_with_ellipse.json null points fr2_person
+
+./rgbd_tum_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/TUM3.yaml /home/yutong/data/rgbd_dataset_freiburg3_long_office_household ../Data/fr3/fr3_office.txt ../Data/fr3/detections_yolov8x_seg_fr3_office_with_ellipse.json null points fr3
+
+./rgbd_tum_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/TUM1.yaml /home/yutong/data/rgbd_dataset_freiburg1_desk ../Data/fr1_desk/fr1_desk.txt ../Data/fr1_desk/detections_yolov8x_seg_fr1_desk_with_ellipse.json null points fr1_desk
+
+./rgbd_tum_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/TUM1.yaml /home/yutong/data/rgbd_dataset_freiburg1_desk2 ../Data/fr1_desk2/fr1_desk2.txt ../Data/fr1_desk2/detections_yolov8x_seg_fr1_desk2_with_ellipse.json null points fr1_desk2
+
+
+./rgbd_diamond_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/diamond_walk.yaml /home/yutong/data/diamond_ground_robot_for_test ../Data/diamond_ground/diamond_ground_robot_associated.txt ../Data/diamond_ground/detections_yolov8x_seg_diamond_ground_robot_with_ellipse.json null points diamond_ground
+
+./rgbd_diamond_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/diamond_vr_slow.yaml /home/yutong/data/diamond_vr_slow_for_test ../Data/diamond_vr_slow/diamond_vr_slow_associated.txt ../Data/diamond_vr_slow/detections_yolov8x_seg_diamond_vr_slow_with_ellipse.json null points diamond_vr_slow
+
+./rgbd_diamond_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/diamond_walk.yaml /home/yutong/data/diamond_dji_for_test ../Data/diamond_dji/diamond_dji_associated.txt ../Data/diamond_dji/detections_yolov8x_seg_diamond_dji_with_ellipse.json null points diamond_dji
+
+./rgbd_diamond_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/diamond_walk.yaml /home/yutong/data/diamond_walk_head ../Data/diamond_head/diamond_walk_head_associated.txt ../Data/diamond_head/detections_yolov8x_seg_diamond_walk_head_with_ellipse.json null points diamond_head
+
+##### Relocalization ######
+
+./loc_diamond ../Vocabulary/ORBvoc.txt ../Cameras/diamond_walk.yaml /home/yutong/data/diamond_walk_for_test ../Data/diamond_walk/diamond_walk_associated.txt ../Data/diamond_walk/detections_yolov8x_seg_diamond_with_ellipse.json null ../Saved_Maps/diamond_500/map_diamond_500.yaml goreloc diamond_reloc 0
+
+./loc_diamond ../Vocabulary/ORBvoc.txt ../Cameras/diamond_walk.yaml /home/yutong/data/diamond_ground_robot_for_test ../Data/diamond_ground/diamond_ground_robot_associated.txt ../Data/diamond_ground/detections_yolov8x_seg_diamond_ground_robot_with_ellipse.json null ../Saved_Maps/diamond_all/map_diamond_all.yaml goreloc diamond_reloc 0
+
+./loc_diamond ../Vocabulary/ORBvoc.txt ../Cameras/diamond_walk.yaml /home/yutong/data/diamond_dji_for_test ../Data/diamond_dji/diamond_dji_associated.txt ../Data/diamond_dji/detections_yolov8x_seg_diamond_dji_with_ellipse.json null ../Saved_Maps/diamond_all/map_diamond_all.yaml goreloc diamond_reloc 0
+
+./loc_diamond ../Vocabulary/ORBvoc.txt ../Cameras/diamond_walk.yaml /home/yutong/data/diamond_walk_head ../Data/diamond_head/diamond_walk_head_associated.txt ../Data/diamond_head/detections_yolov8x_seg_diamond_walk_head_with_ellipse.json null ../Saved_Maps/diamond_all/map_diamond_all.yaml goreloc diamond_reloc 0
+
+./loc_diamond ../Vocabulary/ORBvoc.txt ../Cameras/diamond_vr_slow.yaml /home/yutong/data/diamond_vr_slow_for_test ../Data/diamond_vr_slow/diamond_vr_slow_associated.txt ../Data/diamond_vr_slow/detections_yolov8x_seg_diamond_vr_slow_with_ellipse.json null ../Saved_Maps/diamond_all/map_diamond_all.yaml goreloc diamond_reloc 0
+
+./loc_diamond ../Vocabulary/ORBvoc.txt ../Cameras/diamond_walk.yaml /home/yutong/data/diamond_walk_for_test ../Data/diamond_walk/diamond_walk_associated.txt ../Data/diamond_walk/detections_yolov8x_seg_diamond_with_ellipse.json null ../Saved_Maps/diamond_all/map_diamond_all.yaml goreloc diamond_reloc 0
+
+./loc_tum ../Vocabulary/ORBvoc.txt ../Cameras/TUM2.yaml /home/yutong/data/rgbd_dataset_freiburg2_desk ../Data/fr2_desk/fr2_associated_ours.txt ../Data/fr2_desk/detections_yolov8x_seg_tum_rgbd_fr2_desk_with_ellipse.json null ../Saved_Maps/fr2_desk_all/map_fr2_desk_all.yaml goreloc tum_reloc 0
+
+./loc_tum ../Vocabulary/ORBvoc.txt ../Cameras/TUM2.yaml /home/yutong/data/rgbd_dataset_freiburg2_desk_with_person ../Data/fr2_person/fr2_person_associated.txt ../Data/fr2_person/detections_yolov8x_seg_fr2_person_with_ellipse.json null ../Saved_Maps/fr2_desk_all/map_fr2_desk_all.yaml goreloc tum_reloc 0
+
+
+
+
+
+
+
+

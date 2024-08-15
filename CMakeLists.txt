@@ -11,17 +11,6 @@ set(CMAKE_CXX_FLAGS "-std=c++17 -faligned-new -Wall -Wno-deprecated-declarations
 
 LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 
-#find_package(OpenCV REQUIRED)
-#if(NOT OpenCV_FOUND)
-#   message(FATAL_ERROR "OpenCV > 2.4.3 not found.")
-#else()
-#   if(NOT "${OpenCV_VERSION_MAJOR}" STREQUAL "4")
-#      message(WARNING "OpenCV 4 is required for dnn module. Object detector will not be available.")
-#   else()
-#      message("OpenCV 4 found. Make sure OpenCV is built with dnn module and CUDA.")
-#      add_definitions(-DUSE_DNN)
-#   endif()
-#endif()
 
 find_package(OpenCV 3.0 QUIET)
 if(NOT OpenCV_FOUND)
@@ -79,19 +68,14 @@ src/osmap.pb.cc
 src/ImageDetections.cc
 src/Ellipse.cc
 src/Ellipsoid.cc
-src/ObjectTrack.cc
 src/Distance.cc
-src/MapObject.cc
 src/OptimizerObject.cc
-src/LocalObjectMapping.cc
 src/Utils.cc
 src/ColorManager.cc
 src/Reconstruction.cc
 src/Camera.cc
-src/Scene.cc
 src/p3p.cc
 src/Localization.cc
-src/ARViewer.cc
 src/Graph.cc
 src/Object.cc
 src/ObjectMatcher.cc

@@ -1,5 +1,3 @@
-
-
 /**
 * This file is part of ORB-SLAM2.
 *
@@ -24,8 +22,6 @@
 #include "MapPoint.h"
 #include "KeyFrame.h"
 #include "Ellipsoid.h"
-#include "MapObject.h"
-#include "ObjectTrack.h"
 #include "Object.h"
 #include "ColorManager.h"
 #include <pangolin/pangolin.h>
@@ -376,7 +372,6 @@ void MapDrawer::GetCurrentOpenGLCameraMatrix(pangolin::OpenGlMatrix &M)
 void MapDrawer::DrawMapObjects()
 {
     const std::vector<Object*> objects = mpMap->GetAllObjects();
-    //std::cout<<"DrawMapObjects1:"<<objects.size()<<std::endl;
     glPointSize(mPointSize);
     const auto& color_manager = CategoryColorsManager::GetInstance();
     glLineWidth(2);
@@ -468,7 +463,6 @@ void MapDrawer::DrawMapObjects()
             glEnd();
         }
     }
-    //std::cout<<"DrawMapObjects2:"<<count<<std::endl;
 }
 
 

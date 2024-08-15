@@ -1,6 +1,4 @@
-﻿
-
-/**
+﻿/**
 * This file is part of ORB-SLAM2.
 *
 * Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
@@ -665,91 +663,6 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
     }
 
 
-
-    //--------------------------------------------------
-    auto objects = pMap->GetAllMapObjects();
-
-    if (use_objects == 1)
-    {
-        for (MapObject* pObj : objects) {
-            ObjectTrack* tr = pObj->GetTrack();
-            if (!tr)
-                continue;
-            for(list<KeyFrame*>::iterator lit=lLocalKeyFrames.begin(); lit!=lLocalKeyFrames.end(); lit++) {
-                KeyFrame *kf = *lit;
-                if(kf->isBad())
-                    continue;
-
-                auto [kf_bboxes,kf_scores] = pObj->GetTrack()->CopyDetectionsMapInKeyFrames();
-
-
-                if (kf_bboxes.find(kf) != kf_bboxes.end()) {
-                    Eigen::Matrix3d K = cvToEigenMatrix<double, float, 3, 3>(kf->mK);
-                    auto bb = kf_bboxes[kf];
-                    Ellipse ell = Ellipse::FromBbox(bb);
-                    Ellipsoid ellipsoid = pObj->GetEllipsoid();
-
-
-                    EdgeSE3ProjectEllipsoidOnlyPose *e = new EdgeSE3ProjectEllipsoidOnlyPose(ell, ellipsoid, K);
-                    e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(kf->mnId)));
-                    Eigen::Matrix<double, 1, 1> information_matrix = Eigen::Matrix<double, 1, 1>::Identity();
-                    e->setInformation(information_matrix);
-                    // std::cout << "Added edge with ellipsoid " << tr->GetId() << std::endl;
-                    optimizer.addEdge(e);
-                }
-            }
-        }
-    }
-    else if (use_objects == 2)
-    {
-        for (MapObject* pObj : objects) {
-            ObjectTrack* tr = pObj->GetTrack();
-            if (!tr)
-                continue;
-
-            VertexEllipsoidQuat* vertex = new VertexEllipsoidQuat();
-            EllipsoidQuat ellipsoid_quat = EllipsoidQuat::FromEllipsoid(pObj->GetEllipsoid());
-            vertex->setEstimate(ellipsoid_quat);
-
-            // g2o::VertexSBAPointXYZ* vertex = new g2o::VertexSBAPointXYZ();
-            // vertex->setEstimate(pObj->GetEllipsoid().GetCenter());
-
-
-            int id = maxMPid + 1 + pObj->GetTrack()->GetId();
-            vertex->setId(id);
-            vertex->setMarginalized(true);
-            optimizer.addVertex(vertex);
-
-
-            auto [kf_bboxes,kf_scores] = pObj->GetTrack()->CopyDetectionsMapInKeyFrames();
-
-            for(list<KeyFrame*>::iterator lit=lLocalKeyFrames.begin(); lit!=lLocalKeyFrames.end(); lit++) {
-                KeyFrame *kf = *lit;
-                if(kf->isBad())
-                    continue;
-
-                if (kf_bboxes.find(kf) != kf_bboxes.end()) {
-                    Eigen::Matrix3d K = cvToEigenMatrix<double, float, 3, 3>(kf->mK);
-                    auto bb = kf_bboxes[kf];
-                    Ellipse ell = Ellipse::FromBbox(bb);
-                    Ellipsoid ellipsoid = pObj->GetEllipsoid();
-
-                    EdgeSE3ProjectEllipsoid *e = new EdgeSE3ProjectEllipsoid(ell, K);
-                    // EdgeSE3ProjectEllipsoidCenter *e = new EdgeSE3ProjectEllipsoidCenter(ell, K);
-                    e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
-                    e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(kf->mnId)));
-                    Eigen::Matrix<double, 1, 1> information_matrix = Eigen::Matrix<double, 1, 1>::Identity();
-                    // Eigen::Matrix<double, 2, 2> information_matrix = Eigen::Matrix<double, 2, 2>::Identity();
-                    e->setInformation(information_matrix);
-                    // std::cout << "Added edge with ellipsoid " << tr->GetId() << std::endl;
-                    optimizer.addEdge(e);
-                }
-            }
-        }
-    }
-    //--------------------------------------------------
-
-
     if(pbStopFlag)
         if(*pbStopFlag)
             return;
@@ -878,29 +791,7 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         pMP->UpdateNormalAndDepth();
     }
 
-    // Ellipsoids
-    if (use_objects == 2)
-    {
-        for (MapObject* pObj : objects)
-        {
-            ObjectTrack* tr = pObj->GetTrack();
-            if (!tr)
-                continue;
-
-            int id = maxMPid + 1 + pObj->GetTrack()->GetId();
-            VertexEllipsoidQuat* vEll = static_cast<VertexEllipsoidQuat*>(optimizer.vertex(id));
-            EllipsoidQuat ell_quat_est = vEll->estimate();
-            Ellipsoid new_ellipsoid = ell_quat_est.ToEllipsoid();
-            pObj->SetEllipsoid(new_ellipsoid);
-
-            // g2o::VertexSBAPointXYZ* vEll = static_cast<g2o::VertexSBAPointXYZ*>(optimizer.vertex(id));
-            // Eigen::Vector3d pos = vEll->estimate();
-            // auto ell = pObj->GetEllipsoid();
-            // Ellipsoid new_ellipsoid(ell.GetAxes(), ell.GetOrientation(), pos);
-            // pObj->SetEllipsoid(new_ellipsoid);
-        }
-    }
-
+    
 }
 
 

@@ -1,5 +1,3 @@
-
-
 /**
 * This file is part of ORB-SLAM2.
 *
@@ -23,9 +21,6 @@
 
 #include "System.h"
 #include "Ellipsoid.h"
-#include "LocalObjectMapping.h"
-#include "MapObject.h"
-#include "ObjectTrack.h"
 #include "Converter.h"
 #include "ColorManager.h"
 #include <thread>
@@ -33,7 +28,6 @@
 #include <iomanip>
 #include <unistd.h>
 #include <nlohmann/json.hpp>
-#include "ObjectTrack.h"
 
 namespace ORB_SLAM2
 {
@@ -91,12 +85,6 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpLocalMapper = new LocalMapping(mpMap, mSensor==MONOCULAR, use_objects_in_local_BA);
     mptLocalMapping = new thread(&ORB_SLAM2::LocalMapping::Run,mpLocalMapper);
 
-    //Initialize the Local Mapping thread and launch
-    local_object_mapper_ = nullptr;
-    /*if (use_objects_in_local_BA <= 1) {
-        local_object_mapper_ = new LocalObjectMapping(mpMap, mpTracker);
-        local_object_mapping_ = new thread(&ORB_SLAM2::LocalObjectMapping::Run, local_object_mapper_);
-    }*/
 
     //Initialize the Loop Closing thread and launch
     mpLoopCloser = new LoopClosing(mpMap, mpKeyFrameDatabase, mpVocabulary, mSensor!=MONOCULAR);
@@ -112,7 +100,6 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
     //Set pointers between threads
     mpTracker->SetLocalMapper(mpLocalMapper);
-    //mpTracker->SetLocalObjectMapper(local_object_mapper_);
     mpTracker->SetLoopClosing(mpLoopCloser);
 
     mpLocalMapper->SetTracker(mpTracker);
@@ -345,7 +332,6 @@ void System::Shutdown()
 {
     mpLocalMapper->RequestFinish();
     mpLoopCloser->RequestFinish();
-    //if (local_object_mapper_) local_object_mapper_->RequestFinish();
     if(mpViewer)
     {
         std::cout << "Shutdown: mpViewer" << std::endl;
@@ -361,14 +347,6 @@ void System::Shutdown()
         usleep(5000);
     }
 
-    // Wait unitl local object mapper is stopped
-    /*if (local_object_mapper_) {
-        while(!local_object_mapper_->isFinished())
-        {
-            std::cout << "Wait unitl local object mapper is stopped" << std::endl;
-            usleep(5000);
-        }
-    }*/
 
     if(mpViewer){
         pangolin::BindToContext("VOOM: Map Viewer");
@@ -614,97 +592,5 @@ void System::SaveMapPointsOBJ(const string &filename)
 }
 
 
-void System::SaveMapObjectsOBJ(const string& filename)
-{
-    /*std::vector<MapObject*> objects = mpMap->GetAllMapObjects();
-    std::ofstream f;
-    f.open(filename.c_str());
-    f << fixed;
-
-    for (size_t i = 0; i < objects.size(); ++i) {
-        if (objects[i]->GetTrack()->IsBad()) 
-            continue;
-
-        const cv::Scalar& c = objects[i]->GetTrack()->GetColor();
-        auto pts = objects[i]->GetEllipsoid().GeneratePointCloud(200);
-        for (int j = 0; j < pts.rows(); ++j) {
-            f << "v " << setprecision(7) << " "<< pts(j, 0)
-                                        << " " << pts(j, 1)
-                                        << " " << pts(j, 2)
-                                        << " " << c[2]
-                                        << " " << c[1]
-                                        << " " << c[0] << endl;
-
-        }
-
-    }
-    f.close();
-    cout << "Save map objects in " << filename << endl;*/
-    std::vector<Object*> objects = mpMap->GetAllObjects();
-
-     std::ofstream f;
-    f.open(filename.c_str());
-    f << fixed;
-
-    int count = 0;
-    for (auto *obj : objects) {
-        if(obj->isBad()) continue;
-        count += 1;
-        const cv::Scalar& c = obj->GetColor();
-        auto pts = obj->GetEllipsoid().GeneratePointCloud(200);
-        for (int j = 0; j < pts.rows(); ++j) {
-            f << "v " << setprecision(7) << " "<< pts(j, 0)
-                                        << " " << pts(j, 1)
-                                        << " " << pts(j, 2)
-                                        << " " << c[2]
-                                        << " " << c[1]
-                                        << " " << c[0] << endl;
-
-        }
-    }
-    f.close();
-    cout << "Save map objects in " << filename << "with " << count << "objects." << endl;
-}
-
-void System::SaveMapObjectsTXT(const std::string& filename)
-{
-    std::vector<MapObject*> objects = mpMap->GetAllMapObjects();
-    std::ofstream f;
-    f.open(filename.c_str());
-    f << fixed;
-
-    for (size_t i = 0; i < objects.size(); ++i) {
-        if (objects[i]->GetTrack()->IsBad())
-            continue;
-        const auto& ell = objects[i]->GetEllipsoid();
-        f << objects[i]->GetTrack()->GetId() << " "
-          << objects[i]->GetTrack()->GetCategoryId();
-        Eigen::Matrix4d Q = ell.AsDual();
-        double *p = Q.data();
-        for (int i = 0; i < 16; ++i) {
-            f << setprecision(8) << " " << p[i];
-        }
-        f << "\n";
-    }
-    f.close();
-        cout << "Save map objects in " << filename << endl;
-}
-
-void System::remove_nth_object_by_cat(int cat, int nth)
-{
-    auto objects = mpMap->GetAllMapObjects();
-    int i = 0;
-    for (auto o : objects)
-    {
-        if (o->GetTrack()->GetCategoryId() == cat) {
-            std::cout << "Object " << o->GetTrack()->GetId() << " is from  cat " << o->GetTrack()->GetCategoryId() << "\n";
-            ++i;
-            if (i == nth) {
-                std::cout << "Object deleted.\n";
-                mpMap->EraseMapObject(o);
-            }
-        }
-    }
-}
 
 } //namespace ORB_SLAM

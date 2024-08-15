@@ -1,5 +1,3 @@
-
-
 /**
 * This file is part of ORB-SLAM2.
 *
@@ -23,7 +21,6 @@
 #include "FrameDrawer.h"
 #include "ImageDetections.h"
 #include "Tracking.h"
-#include "MapObject.h"
 #include "ColorManager.h"
 
 #include <opencv2/core/core.hpp>

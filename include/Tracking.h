@@ -1,24 +1,4 @@
 /**
-* This file is part of OA-SLAM.
-*
-* Copyright (C) 2022 Matthieu Zins <matthieu.zins@inria.fr>
-* (Inria, LORIA, Université de Lorraine)
-* OA-SLAM is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* OA-SLAM is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with OA-SLAM. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
-/**
 * This file is part of ORB-SLAM2.
 *
 * Copyright (C) 2014-2016 Raúl Mur-Artal <raulmur at unizar dot es> (University of Zaragoza)
@@ -58,7 +38,6 @@
 #include "MapDrawer.h"
 #include "System.h"
 #include "Utils.h"
-#include "ObjectTrack.h"
 #include "Object.h"
 
 #include <nlohmann/json.hpp>
@@ -73,17 +52,14 @@ namespace ORB_SLAM2
 {
 
 class Viewer;
-class ARViewer;
 class FrameDrawer;
 class Map;
 class LocalMapping;
-class LocalObjectMapping;
 class LoopClosing;
 class System;
 class Detection;
 class Ellipsoid;
 class Graph;
-class MapObject;
 class Object;
 // enum  enumForceRelocalization: int;
 
@@ -100,10 +76,8 @@ public:
     cv::Mat GrabImageMonocular(const cv::Mat &im, const double &timestamp, const std::vector<Detection::Ptr>& detections, bool force_relocalize);
 
     void SetLocalMapper(LocalMapping* pLocalMapper);
-    void SetLocalObjectMapper(LocalObjectMapping* pLocalObjectMapper);
     void SetLoopClosing(LoopClosing* pLoopClosing);
     void SetViewer(Viewer* pViewer);
-    void SetARViewer(ARViewer* pARViewer);
 
     // Load new settings
     // The focal lenght should be similar or scale prediction will fail when projecting points
@@ -168,18 +142,12 @@ public:
 
     void Reset();
 
-    const std::list<ObjectTrack::Ptr>& GetObjectTracks() {
-        return objectTracks_;
-    }
-
     unsigned int GetCurrentFrameIdx() const {
         return current_frame_idx_;
     }
     Eigen::Matrix3d GetK() const {
         return K_;
     }
-
-    void RemoveTrack(ObjectTrack::Ptr track);
 
     std::vector<Detection::Ptr> GetCurrentFrameDetections() {
         return current_frame_detections_;
@@ -257,7 +225,6 @@ protected:
     //Other Thread Pointers
     LocalMapping* mpLocalMapper;
     LoopClosing* mpLoopClosing;
-    LocalObjectMapping* local_object_mapper_;
 
     //ORB
     ORBextractor* mpORBextractorLeft, *mpORBextractorRight;
@@ -280,7 +247,6 @@ protected:
     
     //Drawers
     Viewer* mpViewer;
-    ARViewer* mpARViewer;
     FrameDrawer* mpFrameDrawer;
     MapDrawer* mpMapDrawer;
 
@@ -322,7 +288,6 @@ protected:
 
     list<MapPoint*> mlpTemporalPoints;
 
-    std::list<ObjectTrack::Ptr> objectTracks_;
     size_t current_frame_idx_ = 0;
     bool createdNewKeyFrame_ = false;
     std::vector<Detection::Ptr> current_frame_detections_;

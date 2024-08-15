@@ -19,8 +19,6 @@
 */
 
 #include "Map.h"
-#include "MapObject.h"
-#include "ObjectTrack.h"
 #include<mutex>
 
 namespace ORB_SLAM2
@@ -58,15 +56,6 @@ void Map::EraseKeyFrame(KeyFrame *pKF)
 {
     unique_lock<mutex> lock(mMutexMap);
     mspKeyFrames.erase(pKF);
-
-    // TODO: This only erase the pointer.
-    // Delete the MapPoint
-
-    // Remove keyframes from objects observations
-    for (auto* obj : map_objects_) {
-        // std::cout << "Remove KF " << pKF << " from obj " << obj->GetTrack()->GetId() << std::endl;
-        obj->RemoveKeyFrameObservation(pKF);
-    }
 }
 
 void Map::SetReferenceMapPoints(const vector<MapPoint *> &vpMPs)
@@ -148,10 +137,6 @@ void Map::clear()
     mnMaxKFid = 0;
     mvpReferenceMapPoints.clear();
     mvpKeyFrameOrigins.clear();
-
-    for(set<MapObject*>::iterator sit=map_objects_.begin(), send=map_objects_.end(); sit!=send; sit++)
-        delete *sit;
-    map_objects_.clear();
 }
 
 void Map::AddObject(Object *obj){
@@ -163,48 +148,6 @@ std::vector<Object*> Map::GetAllObjects()
 {
     unique_lock<mutex> lock(mMutexMap);
     return std::vector<Object*>(mspObjects.begin(),mspObjects.end());
-}
-
-void Map::AddMapObject(MapObject *obj)
-{
-    unique_lock<mutex> lock(mMutexMap);
-    std::cout<<"brfore add mapobject"<<std::endl;
-    for(auto o:map_objects_){
-        std::cout<<o->GetId()<<",";
-    }
-    std::cout<<std::endl;
-    map_objects_.insert(obj);
-    std::cout<<"after add mapobject"<<std::endl;
-    for(auto o:map_objects_){
-        std::cout<<o->GetId()<<",";
-    }
-    std::cout<<std::endl;
-    
-    std::cout<<"map added a mo,"<<obj->GetId()<<", total size:"<<map_objects_.size()<<std::endl;
-    //m_map_objects_by_tr_id_[tr_id] = obj;
-}
-
-/*MapObject* Map::GetObjWithTrId(int tr_id){
-    unique_lock<mutex> lock(mMutexMap);
-    if(m_map_objects_by_tr_id_.count(tr_id)>0)
-        return m_map_objects_by_tr_id_[tr_id];
-    else return nullptr;
-}*/
-
-vector<MapObject*> Map::GetAllMapObjects()
-{
-    unique_lock<mutex> lock(mMutexMap);
-    return vector<MapObject*>(map_objects_.begin(),map_objects_.end());
-}
-
-void Map::EraseMapObject(MapObject *obj)
-{
-    unique_lock<mutex> lock(mMutexMap);
-    std::cout<<"map erase an object,"<<obj->GetId()<<std::endl;
-    map_objects_.erase(obj);
-
-    // only erase the pointer
-    // ObjectTrack is responsible to memory freeing
 }
 
 } //namespace ORB_SLAM

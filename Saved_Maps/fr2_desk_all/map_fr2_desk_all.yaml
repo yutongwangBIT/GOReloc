@@ -1,0 +1,17 @@
+%YAML:1.0
+---
+mappointsFile: "map_fr2_desk_all.mappoints"
+nMappoints: 9709
+objectsFile: "map_fr2_desk_all.objects"
+nObjects: 47
+keyframesFile: "map_fr2_desk_all.keyframes"
+nKeyframes: 198
+graphsFile: "map_fr2_desk_all.graphs"
+nGraphs: 198
+featuresFile: "map_fr2_desk_all.features"
+nFeatures: 199265
+Options: 2
+Options descriptions: [ FEATURES_FILE_NOT_DELIMITED ]
+cameraMatrices:
+   - { fx:5.2090863037109375e+02, fy:5.2100732421875000e+02,
+       cx:3.2514144897460938e+02, cy:2.4970176696777344e+02 }

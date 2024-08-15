@@ -37,15 +37,13 @@
 #include "PnPsolver.h"
 #include "Ellipsoid.h"
 #include "Ellipse.h"
-#include "MapObject.h"
-#include "LocalObjectMapping.h"
 #include "Localization.h"
 #include "System.h"
 #include "Utils.h"
-#include "ARViewer.h"
 #include "Graph.h"
 #include "ObjectMatcher.h"
 #include "p3p.h"
+#include "Distance.h"
 #include <iostream>
 
 #include <mutex>
@@ -187,11 +185,6 @@ void Tracking::SetLocalMapper(LocalMapping *pLocalMapper)
     mpLocalMapper=pLocalMapper;
 }
 
-void Tracking::SetLocalObjectMapper(LocalObjectMapping *obj_mapper)
-{
-    local_object_mapper_ = obj_mapper;
-}
-
 
 void Tracking::SetLoopClosing(LoopClosing *pLoopClosing)
 {
@@ -201,11 +194,6 @@ void Tracking::SetLoopClosing(LoopClosing *pLoopClosing)
 void Tracking::SetViewer(Viewer *pViewer)
 {
     mpViewer=pViewer;
-}
-
-void Tracking::SetARViewer(ARViewer *pARViewer)
-{
-    mpARViewer = pARViewer;
 }
 
 
@@ -498,301 +486,13 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp,
     }
     else
     {
-        std::cout<<"before tracking"<<std::endl;
-
         Track();
-        std::cout<<"after tracking"<<std::endl;
-        // if (!mbOnlyTracking)    // if in localization-only mode, no neeed to track objects
-        //     break;
-
-        /////////////////////////////////// Objects Tracking ///////////////////////////////////
-        // Update mean depth
-        if (mState == Tracking::OK) {
-            Matrix34d Rt = cvToEigenMatrix<double, float, 3, 4>(mCurrentFrame.mTcw);
-            double z_mean = 0.0;
-            unsigned int z_nb = 0;
-            for(size_t i = 0; i < mCurrentFrame.mvpMapPoints.size(); i++) {
-                MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
-                if(pMP && !mCurrentFrame.mvbOutlier[i]) {
-                    cv::Mat mp =  pMP->GetWorldPos();
-                    Eigen::Vector4d p(mp.at<float>(0), mp.at<float>(1), mp.at<float>(2), 1.0);
-                    Eigen::Vector3d p_cam = Rt * p;
-                    z_mean += p_cam[2];
-                    z_nb++;
-                }
-            }
-            z_mean /= z_nb;
-            // std::cout << "Mean depth = " << z_mean << "\n";
-            current_mean_depth_ = z_mean;
-        }
-
-        std::cout << "Frame " << current_frame_idx_ << " ===========\n";
-        // std::cout << "Created new KF: " << createdNewKeyFrame_ << "\n";
-        std::cout << "Nb Object Tracks: " << objectTracks_.size() << "\n";
-        std::cout << "Nb Map Objects  : " << mpMap->GetNumberMapObjects() << "\n";
-        // for (auto tr : objectTracks_) {
-        //     std::cout << "    - tr " << tr->GetId() << " : " << tr->GetNbObservations() << "\n";
-        // }
-
-        double MIN_2D_IOU_THRESH = 0.2;
-        double MIN_3D_IOU_THRESH = 0.3;
-        int TIME_DIFF_THRESH = 30;
-
-
-        BBox2 img_bbox(0, 0, im.cols, im.rows);
-
-        if (mState == Tracking::OK) {
-
-            // Keep only detections with a certain score
-            if (current_frame_good_detections_.size() != 0) {
-
-                KeyFrame *kf = mpLastKeyFrame;
-                if (!createdNewKeyFrame_)
-                    kf = nullptr;
-
-
-                // pre-compute all the projections of all ellipsoids which already reconstructed
-                Matrix34d Rt = cvToEigenMatrix<double, float, 3, 4>(mCurrentFrame.mTcw);
-                Matrix34d P;
-                P = K_ * Rt;
-                std::unordered_map<ObjectTrack::Ptr, BBox2> proj_bboxes;
-                for (auto tr: objectTracks_) {
-                    if (tr->GetStatus() == ObjectTrackStatus::INITIALIZED ||
-                        tr->GetStatus() == ObjectTrackStatus::IN_MAP) {
-                        MapObject* obj = tr->GetMapObject();
-                        Eigen::Vector3d c = obj->GetEllipsoid().GetCenter();
-                        double z = Rt.row(2).dot(c.homogeneous());
-                        auto ell = obj->GetEllipsoid().project(P);
-                        BBox2 bb = ell.ComputeBbox();
-                        if (bboxes_intersection(bb, img_bbox) < 0.3 * bbox_area(bb)) {
-                            continue;
-                        }
-                        proj_bboxes[tr] = ell.ComputeBbox();
-
-                        // Check occlusions and keep only the nearest
-                        std::unordered_set<ObjectTrack::Ptr> hidden;
-                        for (auto it : proj_bboxes) {
-                            if (it.first != tr && bboxes_iou(it.second, bb) > 0.9) {
-                                Eigen::Vector3d c2 = it.first->GetMapObject()->GetEllipsoid().GetCenter();
-                                double z2 = Rt.row(2).dot(c2.homogeneous());
-                                if (z < z2) {
-                                    // remove z2
-                                    hidden.insert(it.first);
-                                } else {
-                                    // remove z
-                                    hidden.insert(tr);
-                                }
-                                break;
-                            }
-                        }
-                        for (auto hid : hidden) {
-                            proj_bboxes.erase(hid);
-                        }
-                    }
-                }
-
-                // find possible tracks
-                std::vector<ObjectTrack::Ptr> possible_tracks;
-                for (auto tr : objectTracks_) {
-                    auto bb = tr->GetLastBbox();
-                    if (tr->GetLastObsFrameId() + 60 >= current_frame_idx_ &&
-                        bboxes_intersection(bb, img_bbox) >= 0.3 * bbox_area(bb)) {
-                        possible_tracks.push_back(tr);
-                    } else if (proj_bboxes.find(tr) != proj_bboxes.end()) {
-                        possible_tracks.push_back(tr);
-                    }
-                }
-
-                // Associated map points to each detection
-                std::vector<std::unordered_set<MapPoint*>> assoc_map_points(current_frame_good_detections_.size());
-                for (size_t i = 0; i < current_frame_good_detections_.size(); ++i) {
-                    for (size_t j = 0; j < mCurrentFrame.mvKeysUn.size(); ++j) {
-                        if (mCurrentFrame.mvpMapPoints[j]) {
-                            const auto& kp = mCurrentFrame.mvKeysUn[j];
-                            MapPoint* corresp_map_point = mCurrentFrame.mvpMapPoints[j];
-                            if (is_inside_bbox(kp.pt.x, kp.pt.y, current_frame_good_detections_[i]->bbox)) {
-                                assoc_map_points[i].insert(corresp_map_point);
-                            }
-                        }
-                    }
-                }
-
-                // Try to match detections to existing object track based on the associated map points
-                int THRESHOLD_NB_MATCH = 10;
-                std::vector<int> matched_by_points(current_frame_good_detections_.size(), -1);
-                std::vector<std::vector<size_t>> nb_matched_points(current_frame_good_detections_.size(), std::vector<size_t>());
-                for (size_t i = 0; i < current_frame_good_detections_.size(); ++i) {
-                    int det_cat = current_frame_good_detections_[i]->category_id;
-                    size_t max_nb_matches = 0;
-                    size_t best_matched_track = 0;
-                    for (size_t j = 0; j < possible_tracks.size(); ++j) {
-                        auto tr_map_points = possible_tracks[j]->GetAssociatedMapPoints();
-                        size_t n = count_set_map_intersection(assoc_map_points[i], tr_map_points);
-                        if (n > max_nb_matches) {
-                            max_nb_matches = n;
-                            best_matched_track = j;
-                        }
-
-                        if (det_cat != possible_tracks[j]->GetCategoryId())
-                            n = 0;
-                        nb_matched_points[i].push_back(n);
-                    }
-
-                    if (max_nb_matches > THRESHOLD_NB_MATCH &&
-                        current_frame_good_detections_[i]->category_id == possible_tracks[best_matched_track]->GetCategoryId()) {
-                        matched_by_points[i] = best_matched_track;
-                    }
-                }
-
-
-                int m = std::max(possible_tracks.size(), current_frame_good_detections_.size());
-                dlib::matrix<long> cost = dlib::zeros_matrix<long>(m, m);
-                std::vector<long> assignment(m, std::numeric_limits<long>::max()); // Important to have it in 'long', max_int is used to force assignment of tracks already matched using points
-                if (current_frame_good_detections_.size() > 0)
-                {
-                    // std::cout << "Hungarian algorithm size " << m << "\n";
-                    for (size_t di = 0; di < current_frame_good_detections_.size(); ++di) {
-                        auto det = current_frame_good_detections_[di];
-
-                        for (size_t ti = 0; ti < possible_tracks.size(); ++ti) {
-                            auto tr = possible_tracks[ti];
-                            if (tr->GetCategoryId() == det->category_id) {
-                                double iou_2d = 0;
-                                double iou_3d = 0;
-
-                                if (tr->GetLastObsFrameId() + TIME_DIFF_THRESH >= current_frame_idx_)
-                                    iou_2d = bboxes_iou(tr->GetLastBbox(), det->bbox);
-
-                                if (proj_bboxes.find(tr) != proj_bboxes.end())
-                                    iou_3d = bboxes_iou(proj_bboxes[tr], det->bbox);
-
-                                if (iou_2d < MIN_2D_IOU_THRESH) iou_2d = 0;
-                                if (iou_3d < MIN_3D_IOU_THRESH) iou_3d = 0;
-
-                                // std::cout << "2D: " << iou_2d << "\n";
-                                // std::cout << "3D: " << iou_3d << "\n";
-                                cost(di, ti) = std::max(iou_2d, iou_3d) * 1000;
-                            }
-                        }
-
-                        if (matched_by_points[di] != -1) {
-                            cost(di, matched_by_points[di]) = std::numeric_limits<int>::max();
-                        }
-                    }
-
-                    // for (size_t i = 0; i < current_frame_good_detections_.size(); ++i) {
-                    //     for (size_t j = 0; j < possible_tracks.size(); ++j) {
-                    //         // std::cout << i << " " << j << " " << nb_matched_points[i][j] << "\n";
-                    //         cost(i, j) += nb_matched_points[i][j] * 1000;
-                    //     }
-                    // }
-
-                    assignment = dlib::max_cost_assignment(cost); // solve
-                }
-
-
-                std::vector<ObjectTrack::Ptr> new_tracks;
-                for (size_t di = 0; di < current_frame_good_detections_.size(); ++di) {
-                    auto det = current_frame_good_detections_[di];
-                    auto assigned_track_idx = assignment[di];
-                    if (assigned_track_idx >= static_cast<long>(possible_tracks.size()) || cost(di, assigned_track_idx) == 0) {
-                        // assigned to non-existing => means not assigned
-                        auto tr = ObjectTrack::CreateNewObjectTrack(det->category_id, det->bbox, det->score, Rt,
-                                                                    current_frame_idx_, this, kf);
-                        // std::cout << "create new track " << tr->GetId() << "\n";
-                        new_tracks.push_back(tr);
-                    } else {
-                        ObjectTrack::Ptr associated_track = possible_tracks[assigned_track_idx];
-                        associated_track->AddDetection(det->bbox, det->score, Rt, current_frame_idx_, kf);
-                        if (kf && associated_track->GetStatus() == ObjectTrackStatus::IN_MAP) {
-                            // std::cout << "Add modified objects" << std::endl;
-                            if (local_object_mapper_)
-                                local_object_mapper_->InsertModifiedObject(associated_track->GetMapObject());
-                        }
-                    }
-                }
-
-                for (auto tr : new_tracks)
-                    objectTracks_.push_back(tr);
-
-
-                if (!mbOnlyTracking) {
-                    for (auto& tr : objectTracks_) {
-                        if (tr->GetLastObsFrameId() == current_frame_idx_) {
-                            // Try reconstruct from points
-                            if ((tr->GetNbObservations() > 10 && tr->GetStatus() == ObjectTrackStatus::ONLY_2D) ||
-                                (tr->GetNbObservations() % 2 == 0 && tr->GetStatus() == ObjectTrackStatus::INITIALIZED)) {
-                                // tr->ReconstructFromSamplesEllipsoid();
-                                // tr->ReconstructFromSamplesCenter();
-
-                            bool status_rec = tr->ReconstructFromCenter(); // try to reconstruct and change status to INITIALIZED if success
-                            // tr->ReconstructFromLandmarks(mpMap);
-                            // tr->ReconstructCrocco(false); // not working
-                            if (status_rec)
-                                tr->OptimizeReconstruction(mpMap);
-                            }
-                        }
-
-                        // Try to optimize objects and insert in the map
-                        if (tr->GetNbObservations() >= 40 && tr->GetStatus() == ObjectTrackStatus::INITIALIZED) {
-                            tr->OptimizeReconstruction(mpMap);
-                            // std::cout << "First opimitzation done.\n";
-                            auto checked = tr->CheckReprojectionIoU(0.3);
-                            // std::cout << "Check reprojection " << checked << ".\n";
-                            if (checked) {
-                                // Add object to map
-                                tr->InsertInMap(mpMap);
-                                // Add object in the local object mapping thread to run a fusion checking
-                                if (local_object_mapper_)
-                                    local_object_mapper_->InsertModifiedObject(tr->GetMapObject());
-                            } else {
-                                tr->SetIsBad(); // or only reset to ONLY_2D ?
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (!mbOnlyTracking) {
-                // Remove objects that are not tracked anymore and not initialized or in the map
-                for (ObjectTrack::Ptr tr : objectTracks_) {
-                    if (static_cast<int>(tr->GetLastObsFrameId()) < static_cast<int>(current_frame_idx_) - TIME_DIFF_THRESH
-                        && tr->GetStatus() != ObjectTrackStatus::IN_MAP) {
-                            tr->SetIsBad();
-                        }
-                }
-
-                // Clean bad objects
-                auto tr_it = objectTracks_.begin();
-                while (tr_it != objectTracks_.end()) {
-                    auto temp = *tr_it;
-                    ++tr_it;
-                    if (temp->IsBad())
-                        RemoveTrack(temp);
-                }
-            }
-        }
-
-        std::cout << "Object Tracks: " << objectTracks_.size() << std::endl;
         mpFrameDrawer->Update(this);
-        std::cout << "finish update " << std::endl;
-    }
-
-    if (mpARViewer) { // Update AR viewer camera
-        mpARViewer->UpdateFrame(im_rgb_);
-        if (mCurrentFrame.mTcw.rows == 4)
-            mpARViewer->SetCurrentCameraPose(cvToEigenMatrix<double, float, 3, 4>(mCurrentFrame.mTcw));
-    }
+    } 
 
     return mCurrentFrame.mTcw.clone();
 }
 
-void Tracking::RemoveTrack(ObjectTrack::Ptr track)
-{
-    if (track->GetMapObject())
-        mpMap->EraseMapObject(track->GetMapObject());
-    objectTracks_.remove(track);
-}
 
 void Tracking::Track(bool use_object)
 {
@@ -990,108 +690,11 @@ void Tracking::Track(bool use_object)
                 }
             }
 
-            //for(auto& [obj, proj] : proj_bboxes){
-            //    auto axes = proj.GetAxes();
-            //    double angle = proj.GetAngle();
-            //    auto c = proj.GetCenter();
-            //    cv::ellipse(im_rgb_, cv::Point2f(c[0], c[1]), cv::Size2f(axes[0], axes[1]), TO_DEG(angle), 0, 360, obj->GetColor(), 1);
-            //}
-
             
             //int nmatches = obj_matcher.MatchObjectsByProjection(mCurrentFrame, proj_bboxes);
             //int nmatches = obj_matcher.MatchObjectsHungarian(mCurrentFrame, proj_bboxes);
             //int nmatches = obj_matcher.MatchObjectsIoU(mCurrentFrame, proj_bboxes);
             int nmatches = obj_matcher.MatchObjectsWasserDistance(mCurrentFrame, proj_bboxes);
-            //std::cout<<"nmatches:"<<nmatches<<std::endl;
-
-            //TODO: check features association according to object asscociation
-            //And ggf. correct the frame poses.
-            //if(nmatches>5){
-            //    float average_intersect_ratio = obj_matcher.AssociateFeaturesWithObjects(mCurrentFrame);
-                /*if(average_intersect_ratio > 0.0f){
-                    ORBmatcher matcher(0.9,true);
-                    // Project points seen in previous frame
-                    int th=10;
-                    int nmatches = matcher.SearchByProjection(mCurrentFrame,mLastFrame,th,mSensor==System::MONOCULAR);
-                }
-            //}
-                
-
-            Rt = cvToEigenMatrix<double, float, 3, 4>(mCurrentFrame.mTcw);
-            P = K_ * Rt;
-            for(size_t i=0; i< mCurrentFrame.mvKeysUn.size(); i++ ){
-                auto mp_frame = mCurrentFrame.mvpMapPoints[i];
-                if(mp_frame){
-                    cv::circle(im_rgb_,mCurrentFrame.mvKeysUn[i].pt,1,cv::Scalar(0,255,0),-1);
-                    cv::Mat p3d = mp_frame->GetWorldPos();
-                    cv::Mat p3Dc = mCurrentFrame.mTcw(cv::Rect(0, 0, 3, 3))*p3d + mCurrentFrame.mTcw(cv::Rect(3, 0, 1, 3));
-                    // Project into Image
-                    float invz = 1/p3Dc.at<float>(2);
-                    float x = p3Dc.at<float>(0)*invz;;
-                    float y = p3Dc.at<float>(1)*invz;;
-                    float u = mCurrentFrame.fx*x+mCurrentFrame.cx;
-                    float v = mCurrentFrame.fy*y+mCurrentFrame.cy;
-                    cv::circle(im_rgb_,cv::Point2f(u, v),1,cv::Scalar(0,255,255),-1);
-                    cv::line(im_rgb_, mCurrentFrame.mvKeysUn[i].pt, cv::Point2f(u, v), cv::Scalar(255,255,255), 1, cv::LINE_AA);
-                }
-            }
-
-            for(auto& [node_id, attribute] : mCurrentFrame.graph->attributes){
-                auto bb = attribute.bbox;
-                cv::rectangle(im_rgb_, cv::Point2i(bb[0], bb[1]),
-                                        cv::Point2i(bb[2], bb[3]),
-                                        cv::Scalar(255, 255, 255),
-                                        2);
-                //auto ell_bb = Ellipse::FromBbox(bb);
-                //auto axes_bb = ell_bb.GetAxes();
-                //double angle_bb = ell_bb.GetAngle();
-                //auto c_bb = ell_bb.GetCenter();
-                //cv::ellipse(im_rgb_, cv::Point2f(c_bb[0], c_bb[1]), cv::Size2f(axes_bb[0], axes_bb[1]), TO_DEG(angle_bb), 0, 360, cv::Scalar(255, 255, 255), 1);
-                auto ell = attribute.ell;
-                auto axes = ell.GetAxes();
-                double angle = ell.GetAngle();
-                auto c = ell.GetCenter();
-                //cv::ellipse(im_rgb_, cv::Point2f(c[0], c[1]), cv::Size2f(axes[0], axes[1]), TO_DEG(angle), 0, 360, cv::Scalar(255, 255, 255), 2);
-                auto obj = attribute.obj;
-                if(obj){
-                    cv::putText(im_rgb_, std::to_string(attribute.label) + "|"+ std::to_string(node_id) + "|" + std::to_string(obj->GetId()),
-                                            cv::Point2i(bb[0]-10, bb[1]-5), cv::FONT_HERSHEY_DUPLEX,
-                                            0.2, cv::Scalar(255, 255, 255), 1, false);
-                    auto proj = obj->GetEllipsoid().project(P);
-                    auto c = proj.GetCenter();
-                    auto axes = proj.GetAxes();
-                    double angle = proj.GetAngle();
-                    cv::ellipse(im_rgb_, cv::Point2f(c[0], c[1]), cv::Size2f(axes[0], axes[1]), TO_DEG(angle), 0, 360, cv::Scalar(255, 0, 0), 1);
-                    auto vIndices_in_box = mCurrentFrame.GetFeaturesInBox(bb[0], bb[2], bb[1], bb[3]);
-                    std::set<MapPoint*> tmp_set;
-                    for(auto i : vIndices_in_box){
-                        auto kp = mCurrentFrame.mvKeysUn[i].pt;
-                        auto mp_frame = mCurrentFrame.mvpMapPoints[i];
-                        if(mp_frame){
-                            //cv::circle(im_rgb_,kp,1,cv::Scalar(0,255,0),-1);
-                            tmp_set.insert(mp_frame);
-                        }
-                        //else
-                        //    cv::circle(im_rgb_,kp,1,cv::Scalar(255,255,255),-1);
-                    }
-                    for(auto mp : obj->GetAssociatedMapPoints()){
-                        cv::Mat p3d = mp->GetWorldPos();
-                        cv::Mat p3Dc = mCurrentFrame.mTcw(cv::Rect(0, 0, 3, 3))*p3d + mCurrentFrame.mTcw(cv::Rect(3, 0, 1, 3));
-                        // Project into Image
-                        float invz = 1/p3Dc.at<float>(2);
-                        float x = p3Dc.at<float>(0)*invz;;
-                        float y = p3Dc.at<float>(1)*invz;;
-                        float u = mCurrentFrame.fx*x+mCurrentFrame.cx;
-                        float v = mCurrentFrame.fy*y+mCurrentFrame.cy;
-                        if(tmp_set.count(mp) == 0)
-                            cv::circle(im_rgb_,cv::Point2f(u, v),1,cv::Scalar(0,0,255),-1);
-                        //else
-                            //cv::circle(im_rgb_,cv::Point2f(u, v),1,cv::Scalar(0,255,255),-1);
-                    }   
-                            
-                }
-            }*/
-
             
         }
 
@@ -1176,173 +779,11 @@ void Tracking::Track(bool use_object)
             if (!createdNewKeyFrame_)
                 kf = nullptr;
 
-            /* // PLOT FEATURE POINTS ONLY
-            cv::Mat im_tmp;
-            im_rgb_.copyTo(im_tmp); 
-
-            const float r = 5;
-            for(size_t i=0; i< mCurrentFrame.mvKeysUn.size(); i++ ){
-                auto mp_frame = mCurrentFrame.mvpMapPoints[i];
-                if(mp_frame){
-                    if(mp_frame->isBad()) continue;
-                    cv::Point2f pt1,pt2;
-                    pt1.x=mCurrentFrame.mvKeysUn[i].pt.x-r;
-                    pt1.y=mCurrentFrame.mvKeysUn[i].pt.y-r;
-                    pt2.x=mCurrentFrame.mvKeysUn[i].pt.x+r;
-                    pt2.y=mCurrentFrame.mvKeysUn[i].pt.y+r;
-                    cv::circle(im_tmp,mCurrentFrame.mvKeysUn[i].pt,1,cv::Scalar(0,255,0),-1);
-                    cv::rectangle(im_tmp,pt1,pt2,cv::Scalar(0,255,0));
-                }
-            }
-
-            std::string image_path1 = "/home/yutong/VOOM/im_save/frames/" + to_string(mCurrentFrame.mnId) + ".png";
-            cv::imwrite(image_path1.c_str(), im_tmp);
-
-            // PLOT ELLIPSE ONLY
-            cv::Mat im_tmp2;
-            im_rgb_.copyTo(im_tmp2);
-            for(auto [node_id, attribute] : mCurrentFrame.graph->attributes){
-                auto bb_det = attribute.bbox;
-                cv::rectangle(im_tmp2, cv::Point2i(bb_det[0], bb_det[1]),
-                                        cv::Point2i(bb_det[2], bb_det[3]),
-                                        cv::Scalar(255, 255, 255),
-                                        2);
-                auto ell_det = attribute.ell;
-                auto c_det = ell_det.GetCenter();
-                auto axes_det = ell_det.GetAxes();
-                double angle_det = ell_det.GetAngle();
-                if(axes_det[0] <= 0.001 || axes_det[1] <= 0.001)
-                    continue;
-                //cv::ellipse(im_tmp2, cv::Point2f(c_det[0], c_det[1]), cv::Size2f(axes_det[0], axes_det[1]), TO_DEG(angle_det), 0, 360, cv::Scalar(255, 255, 255), 2);
-                for (int i = 0; i < 360; i += 16) {
-                    cv::ellipse(im_tmp2, cv::Point2f(c_det[0], c_det[1]), cv::Size2f(axes_det[0], axes_det[1]), 
-                            TO_DEG(angle_det), i, i+8, cv::Scalar(255, 255, 255), 2);
-                }
-            } 
-
-            std::string image_path2 = "/home/yutong/VOOM/im_save/frames/" + to_string(mCurrentFrame.mnId) + "_ell.png";
-            cv::imwrite(image_path2.c_str(), im_tmp2);
-
-            // PLOT BOTH FEATURE and ELLIPSE
-            cv::Mat im_tmp3;
-            im_rgb_.copyTo(im_tmp3);
-            vector<cv::Scalar> mvColor = std::vector<cv::Scalar>(mCurrentFrame.N, cv::Scalar(0,0,0,0));
-            for(auto [node_id, attribute] : mCurrentFrame.graph->attributes){
-                auto bb_det = attribute.bbox;
-                cv::rectangle(im_tmp3, cv::Point2i(bb_det[0], bb_det[1]),
-                                        cv::Point2i(bb_det[2], bb_det[3]),
-                                        cv::Scalar(255, 255, 255),
-                                        2);
-                Matrix34d Rt = cvToEigenMatrix<double, float, 3, 4>(mCurrentFrame.mTcw);
-                Matrix34d P;
-                P = K_ * Rt;
-                if(attribute.obj){
-                    auto proj = attribute.obj->GetEllipsoid().project(P);
-                    auto c = proj.GetCenter();
-                    auto axes = proj.GetAxes();
-                    double angle = proj.GetAngle();
-                    cv::ellipse(im_tmp3, cv::Point2f(c[0], c[1]), cv::Size2f(axes[0], axes[1]), TO_DEG(angle), 0, 360, attribute.obj->GetColor(), 2);
-                    vector<size_t> indecies_in_box = mCurrentFrame.GetFeaturesInBox(bb_det[0], bb_det[2], bb_det[1], bb_det[3]);
-                    for(auto ind : indecies_in_box){
-                        mvColor[ind] = attribute.obj->GetColor();
-                    }
-                }
-            }
-
-            for(size_t i=0; i< mCurrentFrame.mvKeysUn.size(); i++ ){
-                auto mp_frame = mCurrentFrame.mvpMapPoints[i];
-                if(mp_frame){
-                    if(mp_frame->isBad()) continue;
-                    cv::Point2f pt1,pt2;
-                    pt1.x=mCurrentFrame.mvKeysUn[i].pt.x-r;
-                    pt1.y=mCurrentFrame.mvKeysUn[i].pt.y-r;
-                    pt2.x=mCurrentFrame.mvKeysUn[i].pt.x+r;
-                    pt2.y=mCurrentFrame.mvKeysUn[i].pt.y+r;
-                    if(!(mvColor[i][0]==0 && mvColor[i][1]==0 && mvColor[i][2]==0 && mvColor[i][3]==0)){
-                        cv::circle(im_tmp3,mCurrentFrame.mvKeysUn[i].pt,1,mvColor[i],-1);
-                        cv::rectangle(im_tmp3,pt1,pt2,mvColor[i]);
-                    }
-                    else{
-                        cv::circle(im_tmp3,mCurrentFrame.mvKeysUn[i].pt,1,cv::Scalar(0,255,0),-1);
-                        cv::rectangle(im_tmp3,pt1,pt2,cv::Scalar(0,255,0));
-                    }
-                }
-            }
-            
-            std::string image_path3 = "/home/yutong/VOOM/im_save/frames/" + to_string(mCurrentFrame.mnId) + "_both.png";
-            cv::imwrite(image_path3.c_str(), im_tmp3);*/
-
             if(kf){
                 Matrix34d Rt = cvToEigenMatrix<double, float, 3, 4>(mCurrentFrame.mTcw);
                 Matrix34d P;
                 P = K_ * Rt;
 
-                /*for(auto obj : mpMap->GetAllObjects()){
-                    if(obj->isBad()) continue;
-                    auto proj = obj->GetEllipsoid().project(P);
-                    auto c3d = obj->GetEllipsoid().GetCenter();
-                    auto bb_proj = proj.ComputeBbox();
-                    double z = Rt.row(2).dot(c3d.homogeneous());
-                    if ( z < 0 || bboxes_intersection(bb_proj, img_bbox) < 0.3 * bbox_area(bb_proj)
-                        || is_near_boundary(bb_proj, im_rgb_.cols, im_rgb_.rows, -10) ) {
-                        continue;
-                    }
-                    proj_bboxes[obj] = proj;
-                    // Check occlusions and keep only the nearest
-                    std::unordered_set<Object*> hidden;
-                    for (auto it : proj_bboxes) {
-                        if (it.first != obj && bboxes_iou(it.second.ComputeBbox(), bb_proj) > 0.8) {
-                            Eigen::Vector3d c2 = it.first->GetEllipsoid().GetCenter();
-                            double z2 = Rt.row(2).dot(c2.homogeneous());
-                            if (z < z2) {
-                                // remove z2
-                                hidden.insert(it.first);
-                            } else {
-                                // remove z
-                                hidden.insert(obj);
-                            }
-                            break;
-                        }
-                    }
-                    for (auto hid : hidden) {
-                        proj_bboxes.erase(hid);
-                    }
-                }
-
-                //for(auto& [obj, proj] : proj_bboxes){
-                //    auto axes = proj.GetAxes();
-                //    double angle = proj.GetAngle();
-                //    auto c = proj.GetCenter();
-                    //cv::ellipse(im_rgb_, cv::Point2f(c[0], c[1]), cv::Size2f(axes[0], axes[1]), TO_DEG(angle), 0, 360, obj->GetColor(), 1);
-                //}
-
-                int nmatches = obj_matcher.MatchObjectsWasserDistance(mCurrentFrame, proj_bboxes);*/
-                ////////////////////////////////////////////////////////////////////////////////////////////////
-
-                /*for(size_t i=0; i< mCurrentFrame.mvKeysUn.size(); i++ ){
-                    auto mp_frame = mCurrentFrame.mvpMapPoints[i];
-                    if(mp_frame){
-                        if(mp_frame->isBad()) continue;
-                        cv::circle(im_rgb_,mCurrentFrame.mvKeysUn[i].pt,1,cv::Scalar(0,255,0),-1);
-                        cv::Mat p3d = mp_frame->GetWorldPos();
-                        cv::Mat p3Dc = mCurrentFrame.mTcw(cv::Rect(0, 0, 3, 3))*p3d + mCurrentFrame.mTcw(cv::Rect(3, 0, 1, 3));
-                        // Project into Image
-                        float invz = 1/p3Dc.at<float>(2);
-                        float x = p3Dc.at<float>(0)*invz;;
-                        float y = p3Dc.at<float>(1)*invz;;
-                        float u = mCurrentFrame.fx*x+mCurrentFrame.cx;
-                        float v = mCurrentFrame.fy*y+mCurrentFrame.cy;
-                        //cv::circle(im_rgb_,cv::Point2f(u, v),1,cv::Scalar(0,255,255),-1);
-                        //cv::line(im_rgb_, mCurrentFrame.mvKeysUn[i].pt, cv::Point2f(u, v), cv::Scalar(255,255,255), 1, cv::LINE_AA);
-                    }
-                }*/
-
-                //for(auto& [obj, proj] : proj_bboxes){
-                //    auto axes = proj.GetAxes();
-                //    double angle = proj.GetAngle();
-                //    auto c = proj.GetCenter();
-                //    cv::ellipse(im_rgb_, cv::Point2f(c[0], c[1]), cv::Size2f(axes[0], axes[1]), TO_DEG(angle), 0, 360, obj->GetColor(), 1);
-                //}
 
                 for(auto [node_id, attribute] : mCurrentFrame.graph->attributes){
                     auto bb_det = attribute.bbox;
@@ -1351,8 +792,6 @@ void Tracking::Track(bool use_object)
                     //                        cv::Scalar(255, 255, 255),
                     //                        2);
                     if(attribute.obj){
-                        //std::cout<<"node "<<node_id<<" is matched with object "<<attribute.obj->GetId()<<std::endl;
-                        //check iou again???
                         auto proj = attribute.obj->GetEllipsoid().project(P);
                         auto bb_proj = proj.ComputeBbox();
                         double iou = bboxes_iou(bb_proj, bb_det);
@@ -1362,29 +801,13 @@ void Tracking::Track(bool use_object)
                             auto c = proj.GetCenter();
                             auto axes = proj.GetAxes();
                             double angle = proj.GetAngle();
-                            //if(iou<0.3)
-                            //    cv::ellipse(im_rgb_, cv::Point2f(c[0], c[1]), cv::Size2f(axes[0], axes[1]), TO_DEG(angle), 0, 360, cv::Scalar(0, 0, 255), 2);
-                            //else
-                            //    cv::ellipse(im_rgb_, cv::Point2f(c[0], c[1]), cv::Size2f(axes[0], axes[1]), TO_DEG(angle), 0, 360, cv::Scalar(0, 255, 0), 2);
-                            //cv::ellipse(im_rgb_, cv::Point2f(c[0], c[1]), cv::Size2f(axes[0], axes[1]), TO_DEG(angle), 0, 360, attribute.obj->GetColor(), 2);
                             attribute.obj->AddDetection(attribute.label, bb_det, attribute.ell, attribute.confidence, Rt, mCurrentFrame.mnId, kf);
-                            //attribute.obj->AddDetection(attribute.label, bb_det, Ellipse::FromBbox(bb_det), attribute.confidence, Rt, mCurrentFrame.mnId, kf);
-                            //proj_bboxes.erase(attribute.obj);
-                            //double dis_min = normalized_gaussian_wasserstein_2d(proj, Ellipse::FromBbox(bb_det), 10);
-                            //std::cout<<"wasser:"<<dis_min<<std::endl;
-                            //cv::putText(im_rgb_,  std::to_string(attribute.hue), cv::Point2i(bb_det[0]-10, bb_det[1]-5), cv::FONT_HERSHEY_DUPLEX,
-                            //    0.55, cv::Scalar(255, 255, 0), 1, false);
                         }
-                        else{//TODO??
-                            //std::cout<<"BUT IOU IS NOT ENOUGH"<<std::endl;
-                            //attribute.obj = nullptr;
+                        else{
                             continue;
                         }
                     }
                 }
-
-                //cv::putText(im_rgb_,  std::to_string(average_intersect_ratio), cv::Point(15, 15), cv::FONT_HERSHEY_DUPLEX,
-                                //0.55, cv::Scalar(255, 255, 0), 1, false);
 
                 for(auto [node_id, attribute] : kf->graph->attributes){
                     if(!attribute.obj){
@@ -3151,12 +2574,6 @@ void Tracking::Reset()
     mpLocalMapper->RequestReset();
     cout << " done" << endl;
 
-    if (local_object_mapper_) {
-        cout << "Reseting Local Object Mapper...";
-        local_object_mapper_->RequestReset();
-        cout << " done" << endl;
-    }
-
     // Reset Loop Closing
     /*if(mpLoopClosing){
         cout << "Reseting Loop Closing...";
@@ -3171,7 +2588,6 @@ void Tracking::Reset()
     cout << " done" << endl;
 
     // Clear Map (this erase MapPoints and KeyFrames)
-    objectTracks_.clear();
     mpMap->clear();
 
 
