@@ -3,7 +3,7 @@
 
 More usage details are coming soon!
 
-## Citation
+## Publication
 Please cite the corresponding RA-L paper:
 
 	    @ARTICLE{wang2024ral,
