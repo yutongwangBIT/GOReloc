@@ -4,7 +4,7 @@ cd /bin
 
 ##### MAPPING ######
 
-./rgbd_tum_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/TUM2.yaml /home/yutong/data/rgbd_dataset_freiburg2_desk /home/yutong/ORB_SLAM2/Examples/RGB-D/associations/fr2_desk.txt ../Data/detections_yolov8x_seg_tum_rgbd_fr2_desk_with_ellipse.json null points fr2_desk
+./rgbd_tum_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/TUM2.yaml /home/yutong/data/rgbd_dataset_freiburg2_desk ../Data/fr2_desk/fr2_associated_ours.txt ../Data/fr2_desk/detections_yolov8x_seg_tum_rgbd_fr2_desk_with_ellipse.json null points fr2_desk_all
 
 ./rgbd_diamond_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/diamond_walk.yaml /home/yutong/data/diamond_walk_for_test ../Data/diamond_walk/diamond_walk_associated.txt ../Data/diamond_walk/detections_yolov8x_seg_diamond_with_ellipse.json null points diamond
 
