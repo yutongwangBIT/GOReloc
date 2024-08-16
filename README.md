@@ -1,5 +1,5 @@
 # GOReloc
-This repository contains the implementation of our [RAL paper](https://ieeexplore.ieee.org/document/10634741): GOReloc: Graph-based Object-Level Data Association for Relocalization. The article introduces a novel method for object-level relocalization of robotic systems. It determines the pose of a camera sensor by robustly associating the object detections in the current frame with 3D objects in a lightweight object-level map. Object graphs, considering semantic uncertainties, are constructed for both the incoming camera frame and the pre-built map. Objects are represented as graph nodes, and each node employs unique semantic descriptors based on our devised graph kernels. We extract a subgraph from the target map graph by identifying potential object associations for each object detection, then refine these associations and pose estimations using a RANSAC-inspired strategy.
+This repository contains the implementation of our RAL paper: GOReloc: Graph-based Object-Level Data Association for Relocalization([IEEE](https://ieeexplore.ieee.org/document/10634741), [Arxiv](http://arxiv.org/abs/2408.07917)). The article introduces a novel method for object-level relocalization of robotic systems. It determines the pose of a camera sensor by robustly associating the object detections in the current frame with 3D objects in a lightweight object-level map. Object graphs, considering semantic uncertainties, are constructed for both the incoming camera frame and the pre-built map. Objects are represented as graph nodes, and each node employs unique semantic descriptors based on our devised graph kernels. We extract a subgraph from the target map graph by identifying potential object associations for each object detection, then refine these associations and pose estimations using a RANSAC-inspired strategy.
 
 The system overview is as follows:
 
@@ -39,16 +39,26 @@ We use modified versions of the DBoW2 library to perform place recognition and g
 1. [TUM RGBD](https://cvg.cit.tum.de/data/datasets/rgbd-dataset/download)
 2. [LM Data](https://peringlab.org/lmdata/) Diamond sequences
 
-We use the same detections in JSON files as in VOOM: https://github.com/yutongwangBIT/VOOM/tree/main/Data. If you would like to process your own dataset, please find the Python scripts in: https://github.com/yutongwangBIT/VOOM/tree/main/PythonScripts
+We use the same detections in JSON files as in VOOM: https://github.com/yutongwangBIT/VOOM/tree/main/Data. If you would like to process your own dataset, please find the Python scripts at: https://github.com/yutongwangBIT/VOOM/tree/main/PythonScripts
+
 
    
 ## Run our system
 All command lines can be found at https://github.com/yutongwangBIT/GOReloc/blob/main/script
 
-An example usage on TUM Fr2_desk sequence:
+An example usage on TUM Fr2_desk sequence: (We have uploaded some generated maps, can go directly to step 3.)
+1. Run [VOOM](https://github.com/yutongwangBIT/VOOM) to generate maps with keyframes, map points, and objects: 
 ```
 cd bin/
-TODO
+./rgbd_tum_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/TUM2.yaml [Path Source Data fr2_desk] ../Data/fr2_desk/fr2_associated_ours.txt ../Data/fr2_desk/detections_yolov8x_seg_tum_rgbd_fr2_desk_with_ellipse.json null points fr2_desk_all
+```
+here, `fr2_desk_all` is a folder name to save the map.
+
+2. Move the map folder from `bin` to `Saved_Maps`.(there are already some example maps)
+
+3. Run force Relocalization:
+```
+./loc_tum ../Vocabulary/ORBvoc.txt ../Cameras/TUM2.yaml [Path Source fr2_person] ../Data/fr2_person/fr2_person_associated.txt ../Data/fr2_person/detections_yolov8x_seg_fr2_person_with_ellipse.json null ../Saved_Maps/fr2_desk_all/map_fr2_desk_all.yaml goreloc tum_reloc 0
 ```
 
 ## Code Explanation 
