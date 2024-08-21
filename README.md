@@ -75,8 +75,8 @@ Please cite the corresponding RA-L paper:
                 journal={IEEE Robotics and Automation Letters}, 
                 title={GOReloc: Graph-based Object-Level Relocalization for Visual SLAM}, 
                 year={2024},
-                volume={},
-                number={},
-                pages={1-8},
+                volume={9},
+                number={10},
+                pages={8234-8241},
                 doi={10.1109/LRA.2024.3442560}
 	    }
