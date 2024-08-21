@@ -18,25 +18,6 @@
 * along with OSMAP. If not, see <http://www.gnu.org/licenses/>.
 */
 
-/**
-* This file is part of OA-SLAM.
-*
-* Copyright (C) 2022 Matthieu Zins <matthieu.zins@inria.fr>
-* (Inria, LORIA, Université de Lorraine)
-* OA-SLAM is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* OA-SLAM is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with OA-SLAM. If not, see <http://www.gnu.org/licenses/>.
-*/
-
 
 #ifndef OSMAP_H_
 #define OSMAP_H_
@@ -68,7 +49,6 @@
 #include "System.h"
 #include "Tracking.h"
 #include "Ellipsoid.h"
-#include "MapObject.h" //TOBE DELETE
 #include "Graph.h"
 #include "Object.h"
 
@@ -100,33 +80,6 @@ public:
 
 };
 
-//TOBE DELETED
-class OsmapMapObject: public MapObject{
-public:
-	friend class Osmap;
-	OsmapMapObject(const Ellipsoid& ell);
-
-  Ellipsoid ellipsoid;
-  unsigned object_track_id;
-};
-
-
-// For deserialization first create an OsmapObjectTrack,
-// and then create a real ObjectTracl from it with pointers
-class OsmapObjectTrack: public ObjectTrack{
-public:
-	friend class Osmap;
-	OsmapObjectTrack(Osmap*);
-
-  unsigned int id;
-  unsigned int cat;
-  unsigned int last_frame_id;
-  cv::Scalar color;
-  ObjectTrackStatus status;
-  std::vector<BBox2> kf_bboxes;
-  std::vector<unsigned int> kf_indices;
-  std::vector<double> kf_scores;
-};
 
 
 /**
@@ -344,11 +297,6 @@ public:
 
   vector<OsmapObject*> vectorObjects;
   vector<Object*> vectorObjects_out;
-  //TODO: TOBE DELETED
-  vector<OsmapMapObject*> vectorMapObjects;
-  vector<OsmapObjectTrack*> vectorObjectTracks;
-  vector<MapObject*> vectorMapObjects_out; 
-  vector<std::shared_ptr<ObjectTrack>> vectorObjectTracks_out;
 
   /**
    * Buffer where map's keyframes are stored in ascending id order, to save them to file in this order.
@@ -427,15 +375,6 @@ public:
 
   int ObjectsLoad(string filename);
 
-  //TODO: TOBE DELETED
-  int MapObjectsSave(string filename);
-
-  int MapObjectsLoad(string filename);
-
-  int ObjectTracksSave(string filename);
-
-  int ObjectTracksLoad(string filename);
-
 
   /**
    * Save the content of vectorKeyFrames to file like "map.keyframes".
@@ -477,13 +416,6 @@ public:
 
   void getObjectsFromMap();
   void setObjectToMap();
-
-  //TODO DELETE
-  void getMapObjectsFromMap();
-  void setMapObjectToMap();
-
-  void getObjectTracksFromTracker();
-  void setObjectTracksToTracker();
 
   /**
    * Populate Map.mspMapPoints with MapPoints from vectorMapPoints.
@@ -791,24 +723,6 @@ public:
   int serialize(const vector<OsmapObject*>&, SerializedObjectArray &);
   int deserialize(const SerializedObjectArray &serializedObjectArray, vector<OsmapObject*>& vectorObjects);
 
-  //TODO:DELETE
-  // MapObject ====================================================================================================
-
-  /**
-  Serializes a MapObject, according to options.
-  */
-  void serialize(const OsmapMapObject&, SerializedMapobject*);
-  OsmapMapObject *deserialize(const SerializedMapobject &serializedMapobject);
-  int serialize(const vector<OsmapMapObject*>&, SerializedMapobjectArray &);
-  int deserialize(const SerializedMapobjectArray &serializedMapobjectArray, vector<OsmapMapObject*>& vectorMapObjects);
-
-
-
-  // ObjectTrack ====================================================================================================
-  void serialize(const OsmapObjectTrack&, SerializedObjectTrack*);
-  OsmapObjectTrack *deserialize(const SerializedObjectTrack &serializedObjectTrack);
-  int serialize(const vector<OsmapObjectTrack*>&, SerializedObjectTrackArray &);
-  int deserialize(const SerializedObjectTrackArray &serializedObjectTrackArray, vector<OsmapObjectTrack*>& vectorObjectTracks);
 
   // KeyFrame ====================================================================================================
 

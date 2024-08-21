@@ -18,24 +18,6 @@
 * along with OSMAP. If not, see <http://www.gnu.org/licenses/>.
 */
 
-/**
-* This file is part of OA-SLAM.
-*
-* Copyright (C) 2022 Matthieu Zins <matthieu.zins@inria.fr>
-* (Inria, LORIA, Université de Lorraine)
-* OA-SLAM is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* OA-SLAM is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with OA-SLAM. If not, see <http://www.gnu.org/licenses/>.
-*/
 
 
 #include <fstream>
@@ -48,8 +30,6 @@
 #include <Eigen/Dense>
 
 #include "Osmap.h"
-#include "ObjectTrack.h"
-#include "LocalObjectMapping.h"
 #include "Utils.h"
 #include "System.h"
 
@@ -142,10 +122,6 @@ void Osmap::mapSave(const string givenFilename, bool pauseThreads){
 	  headerFile << "nMappoints" << MapPointsSave(filename);
 	}
 
-	// MapObjects
-	// if(!options[NO_MAPPOINTS_FILE]){
-	  // Order mappoints track_id
-	 // getMapObjectsFromMap();
 	  getObjectsFromMap();
 
 	  // New file
@@ -157,19 +133,6 @@ void Osmap::mapSave(const string givenFilename, bool pauseThreads){
 	  headerFile << "nObjects" << ObjectsSave(filename);
 	// }
 
-	// ObjectTracks
-	// if(!options[NO_MAPPOINTS_FILE]){
-	  // Order mappoints track_id
-	//  getObjectTracksFromTracker();
-
-	  // New file
-	//  filename = baseFilename + ".objecttracks";
-
-	  // Serialize
-	//  cout << "Saving " << filename << endl;
-	//  headerFile << "objecttracksFile" << filename;
-	//  headerFile << "nObjectTracks" << ObjectTracksSave(filename);
-	// }
 
 	// K: grab camera calibration matrices.  Will be saved to yaml file later.
 	if(!options[K_IN_KEYFRAME]) getVectorKFromKeyframes();
@@ -260,16 +223,13 @@ void Osmap::mapLoad(string yamlFilename, bool noSetBad, bool pauseThreads, strin
 	if(pauseThreads){
 		// Reset thr tracker to clean the map
 		system.mpLocalMapper->Release();	// Release local mapper just in case it's stopped, because if it is stopped it can't be reset
-		if (system.local_object_mapper_) system.local_object_mapper_->Release();	// Release local mapper just in case it's stopped, because if it is stopped it can't be reset
 		system.mpTracker->Reset();
 		// Here the system is reset, state is NO_IMAGE_YET
 
 		// Stop LocalMapping and Viewer
 		system.mpLocalMapper->RequestStop();
-		if (system.local_object_mapper_) system.local_object_mapper_->RequestStop();
 		if (system.mpViewer) system.mpViewer	    ->RequestStop();
 		while(!system.mpLocalMapper->isStopped()) usleep(1000);
-		//if (system.local_object_mapper_) while(!system.local_object_mapper_->isStopped()) usleep(1000);
 		if (system.mpViewer) while(!system.mpViewer     ->isStopped()) usleep(1000);
 	}
 	//std::cout << "osmap -1" << std::endl;
@@ -284,7 +244,6 @@ void Osmap::mapLoad(string yamlFilename, bool noSetBad, bool pauseThreads, strin
 #endif
 //std::cout << "osmap -0.5" << std::endl;
 	LOGV(system.mpLocalMapper->isStopped())
-	if (system.local_object_mapper_) LOGV(system.local_object_mapper_->isStopped())
 	if (system.mpViewer) LOGV(system.mpViewer     ->isStopped())
 
 	string filename;
@@ -337,14 +296,6 @@ void Osmap::mapLoad(string yamlFilename, bool noSetBad, bool pauseThreads, strin
 	headerFile["objectsFile"] >> filename;
 	ObjectsLoad(filename);
 
-	/*vectorMapObjects.clear();
-	headerFile["mapobjectsFile"] >> filename;
-	MapObjectsLoad(filename);
-
-	vectorObjectTracks.clear();
-	headerFile["objecttracksFile"] >> filename;
-	ObjectTracksLoad(filename);*/
-
 
 	// KeyFrames
 	vectorKeyFrames.clear();
@@ -372,8 +323,6 @@ void Osmap::mapLoad(string yamlFilename, bool noSetBad, bool pauseThreads, strin
 	setMapPointsToMap();
 	setKeyFramesToMap();
 	setObjectToMap();
-	//setMapObjectToMap();
-	//setObjectTracksToTracker();
 
 	// Release temporary vectors
 	clearVectors();
@@ -391,7 +340,6 @@ void Osmap::mapLoad(string yamlFilename, bool noSetBad, bool pauseThreads, strin
 
 		// If a map is loaded, local mapping and local object mapping are disabled
 		// system.mpLocalMapper->Release();
-		// system.local_object_mapper_->Release();
 
 		// Tracking do this when going to LOST state.
 		// Invoked after viewer.Release() because of mutex.
@@ -464,67 +412,6 @@ int Osmap::ObjectsLoad(string filename) {
 	return nMO;
 }
 
-//TOBE DELETE
-int Osmap::MapObjectsSave(string filename){
-	ofstream file;
-	file.open(filename, std::ofstream::binary);
-
-	// Serialize
-	SerializedMapobjectArray serializedMapobjectArray;
-	int nMO = serialize(vectorMapObjects, serializedMapobjectArray);
-
-	// Closing
-	if (!serializedMapobjectArray.SerializeToOstream(&file))
-		// Signals the error
-		nMO = -1;
-	file.close();
-
-	return nMO;
-}
-
-
-int Osmap::MapObjectsLoad(string filename) {
-	ifstream file;
-	file.open(filename, ifstream::binary);
-
-	SerializedMapobjectArray serializedMapobjectArray;
-	serializedMapobjectArray.ParseFromIstream(&file);
-	int nMO = deserialize(serializedMapobjectArray, vectorMapObjects);
-	cout << "Mapobjects loaded: " << nMO << endl;
-
-	file.close();
-	return nMO;
-}
-
-int Osmap::ObjectTracksSave(string filename){
-	ofstream file;
-	file.open(filename, std::ofstream::binary);
-
-	// Serialize
-	SerializedObjectTrackArray serializedObjecttrackArray;
-	int nOT = serialize(vectorObjectTracks, serializedObjecttrackArray);
-
-	// Closing
-	if (!serializedObjecttrackArray.SerializeToOstream(&file))
-		// Signals the error
-		nOT = -1;
-	file.close();
-	return nOT;
-}
-
-
-int Osmap::ObjectTracksLoad(string filename) {
-	ifstream file;
-	file.open(filename, ifstream::binary);
-
-	SerializedObjectTrackArray serializedObjecttrackArray;
-	serializedObjecttrackArray.ParseFromIstream(&file);
-	int nOT = deserialize(serializedObjecttrackArray, vectorObjectTracks);
-	cout << "Objecttracks loaded: " << nOT << endl;
-
-	file.close();
-	return nOT;
-}
 
 int Osmap::KeyFramesSave(string filename){
 	ofstream file;
@@ -687,40 +574,6 @@ void Osmap::setObjectToMap() {
 	std::cout<<"map has objects:"<<map.mspObjects.size()<<std::endl;
 }
 
-//TOBE DELETED
-void Osmap::getMapObjectsFromMap(){
-	  vectorMapObjects.clear();
-	  vectorMapObjects.reserve(map.map_objects_.size());
-	  std::transform(map.map_objects_.begin(), map.map_objects_.end(), std::back_inserter(vectorMapObjects), [](MapObject *pMO)->OsmapMapObject*{return static_cast<OsmapMapObject*>(pMO);});
-	  sort(vectorMapObjects.begin(), vectorMapObjects.end(), [](const MapObject* a, const MapObject* b){return a->GetTrack()->GetId() < b->GetTrack()->GetId();});
-}
-void Osmap::setMapObjectToMap() {
-	map.map_objects_.clear();
-	std::copy(vectorMapObjects_out.begin(), vectorMapObjects_out.end(), std::inserter(map.map_objects_, map.map_objects_.end()));
-}
-
-void Osmap::getObjectTracksFromTracker(){
-	vectorObjectTracks.clear();
-	const auto& ots = tracker.GetObjectTracks();
-	vectorObjectTracks.reserve(ots.size());
-	for (auto ot : ots){
-		// save only objects that are in the map
-		if (ot->GetStatus() == ObjectTrackStatus::IN_MAP) {
-			vectorObjectTracks.push_back(static_cast<OsmapObjectTrack*>(ot.get()));
-		}
-	}
-	// vectorObjectTracks.reserve(ot.size());
-	// std::transform(ot.begin(), ot.end(), std::back_inserter(vectorObjectTracks), [](ObjectTrack::Ptr pOT)->OsmapObjectTrack*{return static_cast<OsmapObjectTrack*>(pOT.get());});
-	// sort(vectorObjectTracks.begin(), vectorObjectTracks.end(), [](const ObjectTrack* a, const ObjectTrack* b){return a->GetId() < b->GetId();});
-}
-
-void Osmap::setObjectTracksToTracker() {
-	tracker.objectTracks_.clear();
-	for (auto pt : vectorObjectTracks_out) {
-		tracker.objectTracks_.push_back(pt);
-	}
-}
-
 void Osmap::getKeyFramesFromMap(){
 	// Order keyframes by mnId
 	vectorKeyFrames.clear();
@@ -741,10 +594,6 @@ void Osmap::clearVectors(){
 	vectorKeyFrames.clear();
 	vectorMapPoints.clear();
 	vectorObjects.clear();
-	vectorMapObjects.clear();
-	vectorMapObjects_out.clear();
-	vectorObjectTracks.clear();
-	vectorObjectTracks_out.clear();
 	vectorK.clear();
 }
 
@@ -1092,61 +941,7 @@ void Osmap::rebuild(bool noSetBad){
 	}
 
 	std::cout<<"REBUILD"<<std::endl;
-	// First rebuild object tracks
-	/*vectorObjectTracks_out.clear();
-	unsigned int max_id = 0;
-	for (auto* ot: vectorObjectTracks) {
-		max_id = std::max(max_id, ot->id);
-
-		// create new object track with dummy detection
-		auto new_ot = ObjectTrack::CreateNewObjectTrack(ot->cat, BBox2(), 0.0, Matrix34d(), 0, dynamic_cast<Tracking*>(&tracker), nullptr);
-		new_ot->SetId(ot->id);
-		new_ot->SetColor(ot->color);
-		new_ot->SetStatus(ot->status);
-		new_ot->SetLastObsFrameId(-1);
-
-		for (size_t i = 0; i < ot->kf_bboxes.size(); ++i) {
-			OsmapKeyFrame *kf = nullptr;
-			for(auto *pKF : vectorKeyFrames) {
-				if (pKF->mnId == ot->kf_indices[i]) {
-					kf = pKF;
-					break;
-				}
-			}
-			if (kf) {
-				new_ot->AddDetection(ot->kf_bboxes[i],
-									 ot->kf_scores[i],
-									 ORB_SLAM2::cvToEigenMatrix<double, float, 3, 4>(kf->GetPose()),
-									 kf->mnId,
-									 kf);
-			}
-		}
-
-		// Clear trakcing buffers with consecutive frames. Only the keyframes can be loaded form the map
-		new_ot->ClearTrackingBuffers();
-		// we re-insert only the keyframes so it does not make sense to set the last frame id
-		new_ot->SetLastObsFrameId(-1);
-		vectorObjectTracks_out.push_back(new_ot);
-	}
-	std::cout << "Rebuilt " << vectorObjectTracks_out.size() << " object tracks.\n";
-	ObjectTrack::factory_id = max_id + 1;
-
-	// Secondly rebuild map objects
-	vectorMapObjects_out.clear();
-	for (auto* mo : vectorMapObjects) {
-		ObjectTrack* corresponding_ot = nullptr;
-		for (auto ot : vectorObjectTracks_out) {
-			if (ot->GetId() == mo->object_track_id) {
-				corresponding_ot = ot.get();
-			}
-		}
-		MapObject* new_mo = new MapObject(mo->ellipsoid, corresponding_ot);
-		if (corresponding_ot) {
-			corresponding_ot->SetMapObject(new_mo);
-		}
-		vectorMapObjects_out.push_back(new_mo);
-	}
-	std::cout << "Rebuilt " << vectorMapObjects_out.size() << " map objects.\n";*/
+	
 
 }
 
@@ -1426,8 +1221,6 @@ OsmapObject *Osmap::deserialize(const SerializedObject &serializedObject){
 	for(j=0; j<m; j++){
 		cat_ids[serializedObject.cat_ids(j)] = serializedObject.cat_counts(j);
 	}
-	//std::cout<<"load object:"<<serializedObject.object_id()<<" with ell center:"<<ell.GetCenter()<<std::endl;
-	//OsmapObject *pObject = new OsmapObject(ell, serializedObject.object_id(), serializedObject.cat_id()); // just create an object
 	OsmapObject *pObject = new OsmapObject(ell, serializedObject.object_id(), cat_ids);
 	pObject->ellipsoid = ell;
 	pObject->object_id = serializedObject.object_id(); 
@@ -1459,104 +1252,8 @@ int Osmap::deserialize(const SerializedObjectArray &serializedObjectArray, vecto
   return i;
 }
 
-// TODO DELETE MapObject ================================================================================================
 
-void Osmap::serialize(const OsmapMapObject &mapobject, SerializedMapobject *serializedMapobject){
-  serialize(mapobject.ellipsoid_, serializedMapobject->mutable_ellipsoid());
-  serializedMapobject->set_object_track_id(mapobject.object_track_->GetId());
-}
 
-OsmapMapObject *Osmap::deserialize(const SerializedMapobject &serializedMapobject){
-  Ellipsoid ell;
-  deserialize(serializedMapobject.ellipsoid(), ell);
-  OsmapMapObject *pMapobject = new OsmapMapObject(ell); // just create an object
-  pMapobject->ellipsoid = ell; // set ellipsoid
-  pMapobject->object_track_id = serializedMapobject.object_track_id(); // set object_track id
-  return pMapobject;
-}
-
-int Osmap::serialize(const vector<OsmapMapObject*>& vectorMO, SerializedMapobjectArray &serializedMapobjectArray){
-  for(auto pMO : vectorMO)
-    serialize(*pMO, serializedMapobjectArray.add_mapobject());
-  return vectorMO.size();
-}
-
-int Osmap::deserialize(const SerializedMapobjectArray &serializedMapobjectArray, vector<OsmapMapObject*>& vectorMapObjects){
-  int i, n = serializedMapobjectArray.mapobject_size();
-  for(i=0; i<n; i++)
-	vectorMapObjects.push_back(deserialize(serializedMapobjectArray.mapobject(i)));
-  return i;
-}
-
-// ObjectTrack ================================================================================================
-
-void Osmap::serialize(const OsmapObjectTrack &objecttrack, SerializedObjectTrack *serializedObjectTrack){
-  serializedObjectTrack->set_id(objecttrack.id_);
-  serializedObjectTrack->set_cat(objecttrack.category_id_);
-  serializedObjectTrack->set_last_frame_id(objecttrack.last_obs_frame_id_);
-  cv::Scalar color = objecttrack.color_;
-  serializedObjectTrack->set_color_r(color[0]);
-  serializedObjectTrack->set_color_g(color[1]);
-  serializedObjectTrack->set_color_b(color[2]);
-  auto status = objecttrack.status_;
-  int status_int = 0;
-  if (status == ObjectTrackStatus::BAD)
-	status_int = 0;
-  else if (status == ObjectTrackStatus::ONLY_2D)
-	status_int = 1;
-  else if (status == ObjectTrackStatus::INITIALIZED)
-	status_int = 2;
-  else if (status == ObjectTrackStatus::IN_MAP)
-	status_int = 3;
-  serializedObjectTrack->set_status(status_int);
-  const auto& kf_bboxes = objecttrack.keyframes_bboxes_;
-  for (auto it : kf_bboxes) {
-    serialize(it.second, serializedObjectTrack->add_kf_bboxes());
-    serializedObjectTrack->add_kf_indices(it.first->mnId);
-  }
-  const auto& kf_scores = objecttrack.keyframes_scores_;
-  for (auto it : kf_scores) {
-    serializedObjectTrack->add_kf_scores(it.second);
-  }
-}
-
-OsmapObjectTrack *Osmap::deserialize(const SerializedObjectTrack &serializedObjectTrack){
-  OsmapObjectTrack *pObjecttrack = new OsmapObjectTrack(this);
-  pObjecttrack->id = serializedObjectTrack.id();
-  pObjecttrack->cat = serializedObjectTrack.cat();
-  pObjecttrack->last_frame_id = serializedObjectTrack.last_frame_id();
-  pObjecttrack->color = cv::Scalar(serializedObjectTrack.color_r(),
-								   serializedObjectTrack.color_g(),
-								   serializedObjectTrack.color_b());
-  std::vector<ObjectTrackStatus> status = {ObjectTrackStatus::BAD, ObjectTrackStatus::ONLY_2D, 
-  										   ObjectTrackStatus::INITIALIZED, ObjectTrackStatus::IN_MAP};
-  pObjecttrack->status = status[serializedObjectTrack.status()];
-  assert(serializedObjectTrack.kf_bboxes_size() == serializedObjectTrack.kf_indices_size());
-  size_t n = serializedObjectTrack.kf_bboxes_size();
-  pObjecttrack->kf_bboxes.resize(n);
-  pObjecttrack->kf_indices.resize(n);
-  pObjecttrack->kf_scores.resize(n);
-  for (size_t i = 0; i < n; ++i) {
-    deserialize(serializedObjectTrack.kf_bboxes(i), pObjecttrack->kf_bboxes[i]);
-    pObjecttrack->kf_indices[i] = serializedObjectTrack.kf_indices(i);
-    pObjecttrack->kf_scores[i] = serializedObjectTrack.kf_scores(i);
-  }
-  // retrieve keyframes_bboxes
-  return pObjecttrack;
-}
-
-int Osmap::serialize(const vector<OsmapObjectTrack*>& vectorOT, SerializedObjectTrackArray &serializedObjectTrackArray){
-  for(auto pOT : vectorOT)
-    serialize(*pOT, serializedObjectTrackArray.add_objecttrack());
-  return vectorOT.size();
-}
-
-int Osmap::deserialize(const SerializedObjectTrackArray &serializedObjectTrackArray, vector<OsmapObjectTrack*>& vectorObjectTracks){
-  int i, n = serializedObjectTrackArray.objecttrack_size();
-  for(i=0; i<n; i++)
-	vectorObjectTracks.push_back(deserialize(serializedObjectTrackArray.objecttrack(i)));
-  return i;
-}
 
 // KeyFrame ================================================================================================
 void Osmap::serialize(const OsmapKeyFrame &keyframe, SerializedKeyframe *serializedKeyframe){
@@ -1850,20 +1547,13 @@ OsmapMapPoint::OsmapMapPoint(Osmap *osmap):
 	MapPoint(Mat(), osmap->pRefKF, &osmap->map)
 {};
 
-OsmapObject::OsmapObject(const Ellipsoid& ell, unsigned int id, std::unordered_map<int, int> cats):
-	Object(ell, id, cats)
-{};
-
-OsmapMapObject::OsmapMapObject(const Ellipsoid& ell):
-	MapObject(ell, nullptr)
-{};
-
-OsmapObjectTrack::OsmapObjectTrack(Osmap *osmap):
-	ObjectTrack()
-{};
 
 OsmapKeyFrame::OsmapKeyFrame(Osmap *osmap):
 	KeyFrame(osmap->currentFrame, &osmap->map, &osmap->keyFrameDatabase)
+{};
+
+OsmapObject::OsmapObject(const Ellipsoid& ell, unsigned int id, std::unordered_map<int, int> cats):
+	Object(ell, id, cats)
 {};
 
 #else
@@ -1871,6 +1561,9 @@ OsmapKeyFrame::OsmapKeyFrame(Osmap *osmap):
 OsmapMapPoint::OsmapMapPoint(Osmap *osmap):
 	MapPoint(osmap)
 {};
+
+
+
 
 OsmapKeyFrame::OsmapKeyFrame(Osmap *osmap):
 	KeyFrame(osmap)
