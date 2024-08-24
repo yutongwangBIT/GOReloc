@@ -124,7 +124,7 @@ public:
     void SaveKeyFrameTrajectoryJSON(const string &filename, const std::vector<std::string>& frames_filenames);
 
     //void SaveKeyFrameFilenamesJSON(const string &filename, const std::vector<std::string>& frames_filenames);
-
+    void SaveObjectsOBJ(const string& filename);
 
     // TODO: Save/Load functions
     // SaveMap(const string &filename);

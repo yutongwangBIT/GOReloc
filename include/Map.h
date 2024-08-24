@@ -36,7 +36,6 @@ namespace ORB_SLAM2
 
 class MapPoint;
 class KeyFrame;
-class MapObject;
 class Graph;
 class Object;
 
@@ -76,22 +75,9 @@ public:
     // This avoid that two points are created simultaneously in separate threads (id conflict)
     std::mutex mMutexPointCreation;
 
-    // const std::unordered_map<unsigned int, Eigen::Matrix<double, 3, Eigen::Dynamic>>& GetAllMapObjectsPoints() {
-    //     return ellipsoids_points_;
-    // }
-
-    void AddMapObject(MapObject *obj);
-    void EraseMapObject(MapObject* obj);
-
     void AddObject(Object *obj);
 
-    vector<MapObject*> GetAllMapObjects();
-
-    //MapObject* GetObjWithTrId(int tr_id);
-
-    size_t GetNumberMapObjects() const {
-        return map_objects_.size();
-    }
+ 
     size_t GetNumberPoints() const {
         return mspMapPoints.size();
     }
@@ -118,11 +104,6 @@ protected:
     int mnBigChangeIdx;
 
     std::mutex mMutexMap;
-
-    // std::unordered_map<unsigned int, Eigen::Matrix<double, 3, Eigen::Dynamic>> ellipsoids_points_;
-    std::set<MapObject*> map_objects_;
-    
-    //std::map<int, MapObject*> m_map_objects_by_tr_id_;
 };
 
 } //namespace ORB_SLAM

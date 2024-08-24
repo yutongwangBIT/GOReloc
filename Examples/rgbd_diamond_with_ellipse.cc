@@ -1,23 +1,3 @@
-/**
-* This file is part of OA-SLAM.
-*
-* Copyright (C) 2022 Matthieu Zins <matthieu.zins@inria.fr>
-* (Inria, LORIA, Université de Lorraine)
-* OA-SLAM is free software: you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation, either version 3 of the License, or
-* (at your option) any later version.
-*
-* OA-SLAM is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with OA-SLAM. If not, see <http://www.gnu.org/licenses/>.
-*/
-
-
 #include<iostream>
 #include<algorithm>
 #include<fstream>
@@ -299,9 +279,8 @@ int main(int argc, char **argv)
     // Save camera trajectory, points and objects
     SLAM.SaveKeyFrameTrajectoryTUM(output_folder + "keyframes_poses_" + output_name + "_tum.txt");
     SLAM.SaveKeyFrameTrajectoryJSON(output_folder + "keyframes_poses_" + output_name + ".json", filenames);
-    //SLAM.SaveMapPointsOBJ(output_folder + "map_points_" + output_name + ".obj");
-    //SLAM.SaveMapObjectsOBJ(output_folder + "map_objects_" + output_name + ".obj");
-    //SLAM.SaveMapObjectsTXT(output_folder + "map_objects_" + output_name + ".txt");
+    SLAM.SaveMapPointsOBJ(output_folder + "map_points_" + output_name + ".obj");
+    SLAM.SaveObjectsOBJ(output_folder + "map_objects_" + output_name + ".obj");
     std::cout << "\n";
 
     // Save a reloadable map

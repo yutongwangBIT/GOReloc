@@ -546,6 +546,34 @@ void System::SaveTrajectoryKITTI(const string &filename)
     cout << "trajectory saved!" << endl;
 }
 
+void System::SaveObjectsOBJ(const string& filename)
+{
+    std::vector<Object*> objects = mpMap->GetAllObjects();
+
+     std::ofstream f;
+    f.open(filename.c_str());
+    f << fixed;
+
+    int count = 0;
+    for (auto *obj : objects) {
+        if(obj->isBad()) continue;
+        count += 1;
+        const cv::Scalar& c = obj->GetColor();
+        auto pts = obj->GetEllipsoid().GeneratePointCloud(200);
+        for (int j = 0; j < pts.rows(); ++j) {
+            f << "v " << setprecision(7) << " "<< pts(j, 0)
+                                        << " " << pts(j, 1)
+                                        << " " << pts(j, 2)
+                                        << " " << c[2]
+                                        << " " << c[1]
+                                        << " " << c[0] << endl;
+
+        }
+    }
+    f.close();
+    cout << "Save map objects in " << filename << "with " << count << "objects." << endl;
+}
+
 int System::GetTrackingState()
 {
     unique_lock<mutex> lock(mMutexState);
