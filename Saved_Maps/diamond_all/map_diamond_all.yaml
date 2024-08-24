@@ -1,0 +1,16 @@
+%YAML:1.0
+---
+mappointsFile: "map_diamond_all.mappoints"
+nMappoints: 12017
+objectsFile: "map_diamond_all.objects"
+nObjects: 101
+keyframesFile: "map_diamond_all.keyframes"
+nKeyframes: 288
+graphsFile: "map_diamond_all.graphs"
+nGraphs: 288
+featuresFile: "map_diamond_all.features"
+nFeatures: 285560
+Options: 2
+Options descriptions: [ FEATURES_FILE_NOT_DELIMITED ]
+cameraMatrices:
+   - { fx:600., fy:600., cx:320., cy:240. }
