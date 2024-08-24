@@ -46,13 +46,13 @@ We use the same detections in JSON files as in VOOM: https://github.com/yutongwa
 ## Run our system
 All command lines can be found at https://github.com/yutongwangBIT/GOReloc/blob/main/script
 
-An example usage on TUM Fr2_desk sequence: (We have uploaded some generated maps, can go directly to step 3.)
+An example usage on TUM Fr2_desk sequence: (We have uploaded some generated maps, so you can go directly to step 3.)
 1. Run [VOOM](https://github.com/yutongwangBIT/VOOM) to generate maps with keyframes, map points, and objects: 
 ```
 cd bin/
 ./rgbd_tum_with_ellipse ../Vocabulary/ORBvoc.txt ../Cameras/TUM2.yaml [Path Source Data fr2_desk] ../Data/fr2_desk/fr2_associated_ours.txt ../Data/fr2_desk/detections_yolov8x_seg_tum_rgbd_fr2_desk_with_ellipse.json null points fr2_desk_all
 ```
-here, `fr2_desk_all` is a folder name to save the map.
+Here, `fr2_desk_all` is a folder name to save the map. You can find more JSON files in VOOM at https://github.com/yutongwangBIT/VOOM/tree/main/Data.
 
 2. Move the map folder from `bin` to `Saved_Maps`.(there are already some example maps)
 
@@ -63,7 +63,7 @@ here, `fr2_desk_all` is a folder name to save the map.
 
 ## Code Explanation 
 The key components related to this paper include the following:
-1. **Graph Construction**: The `Graph` class is implemented in [Graph.cc](https://github.com/yutongwangBIT/GOReloc/blob/main/src/Graph.cc). Implementation of how the graph is constructed can be found in [Tracking::GrabImageRGBD](https://github.com/yutongwangBIT/GOReloc/blob/c87f7a0a6c3c2ca0a2db96b99bdd98f80becd31f/src/Tracking.cc#L370C5-L399C52), where it shows how the graph is built during the tracking phase of RGB-D SLAM. Please note that while we tested the function in RGB-D mode, we actually only use RGB images for relocalization. Consequently, the function can be also compatible with Mono and Stereo modes.
+1. **Graph Construction**: The `Graph` class is implemented in [Graph.cc](https://github.com/yutongwangBIT/GOReloc/blob/main/src/Graph.cc). Implementation of how the graph is constructed can be found in [Tracking::GrabImageRGBD](https://github.com/yutongwangBIT/GOReloc/blob/c87f7a0a6c3c2ca0a2db96b99bdd98f80becd31f/src/Tracking.cc#L370C5-L399C52), where it shows how the graph is built during the tracking phase of RGB-D SLAM. Please note that while we tested the function in RGB-D mode, we actually only use RGB images for relocalization. Consequently, the function can also be compatible with Mono and Stereo modes.
 2. **Map Saving and Loading**: We utilized a third-party library, [OSMAP](https://github.com/AlejandroSilvestri/osmap), and extended it to include support for encoding and decoding objects and graphs.
 3. **GOReloc Function**: The core implementation of the GOReloc function can be found in [Tracking::GOReloc](https://github.com/yutongwangBIT/GOReloc/blob/c87f7a0a6c3c2ca0a2db96b99bdd98f80becd31f/src/Tracking.cc#L2360C1-L2360C26), corresponding to the methods described in the paper.
 
